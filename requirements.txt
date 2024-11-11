@@ -1,11 +1,12 @@
-pandas
-numpy
-matplotlib
-seaborn
-scikit-learn
-tensorflow-cpu==2.17.0
-protobuf==3.20.3
-ml-dtypes==0.2.0
-imbalanced-learn
-streamlit
+pandas>=2.0
+numpy>=2.0
+matplotlib>=3.9
+seaborn>=0.13
+scikit-learn>=1.5
+tensorflow-cpu>=2.17.0
+protobuf>=4.0.0
+ml-dtypes>=0.3.0
+imbalanced-learn>=0.11
+streamlit>=1.24.0
+
 
