@@ -5,8 +5,4 @@ numpy
 streamlit
 joblib
 scikit-learn
-pydot
-graphviz
-plotly
-Pillow
-
+fpdf
