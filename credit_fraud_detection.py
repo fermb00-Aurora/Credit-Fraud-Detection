@@ -135,4 +135,3 @@ if page == "Model Explanation":
 st.markdown("---")
 st.markdown("### Developed by Fernando - AI Fraud Detection Specialist")
 st.markdown("This app leverages a pre-trained ANN model and Streamlit for an interactive and business-oriented experience.")
-
