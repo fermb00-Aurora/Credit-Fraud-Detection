@@ -1,102 +1,59 @@
+# app.py
+
+import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from imblearn.over_sampling import SMOTE
-from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import Dense, Dropout
-from tensorflow.keras.callbacks import EarlyStopping
-import streamlit as st
-import os
-
-# Check package versions to ensure compatibility
 import tensorflow as tf
-import ml_dtypes
+from keras.models import load_model
+from sklearn.preprocessing import StandardScaler
 
-st.write(f"TensorFlow Version: {tf.__version__}")
-st.write(f"ML-Dtypes Version: {ml_dtypes.__version__}")
+# Set the title of the Streamlit app
+st.title("Fraud Detection System Using Pre-trained ANN Model")
 
-# Load and preprocess data
-@st.cache_data
-def load_data():
-    data = pd.read_csv("creditcard.csv")
+# Load the pre-trained model
+@st.cache_resource
+def load_ann_model():
+    model = load_model("ann_model.h5")
+    return model
+
+model = load_ann_model()
+
+# Load the scaler
+@st.cache_resource
+def load_scaler():
+    df = pd.read_csv("creditcard.csv")
+    X = df.drop(columns=["Class"])
     scaler = StandardScaler()
-    X = data.drop(columns=["Class"])
-    y = data["Class"]
-    X[["Amount", "Time"]] = scaler.fit_transform(X[["Amount", "Time"]])
-    return X, y
+    scaler.fit(X)
+    return scaler
 
-X, y = load_data()
+scaler = load_scaler()
 
-# Split data
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42, stratify=y)
+# User interface for uploading CSV file
+uploaded_file = st.file_uploader("Upload a CSV file for prediction")
 
-# Handle class imbalance
-smote = SMOTE(random_state=42)
-X_train_res, y_train_res = smote.fit_resample(X_train, y_train)
+if uploaded_file is not None:
+    # Read the uploaded CSV file
+    st.subheader("Uploaded Data Preview")
+    new_data = pd.read_csv(uploaded_file)
+    st.dataframe(new_data.head())
 
-# Build ANN model
-ann_model = Sequential([
-    Dense(32, input_dim=X_train_res.shape[1], activation='relu'),
-    Dropout(0.2),
-    Dense(16, activation='relu'),
-    Dropout(0.2),
-    Dense(1, activation='sigmoid')
-])
+    # Scale the input data
+    st.write("Scaling the input data...")
+    new_data_scaled = scaler.transform(new_data)
 
-ann_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+    # Make predictions
+    st.write("Making predictions...")
+    predictions = model.predict(new_data_scaled)
+    predictions = (predictions > 0.5).astype(int)
 
-# Train ANN model
-history = ann_model.fit(X_train_res, y_train_res, validation_data=(X_test, y_test),
-                        epochs=50, batch_size=32, callbacks=[early_stopping])
+    # Display results
+    st.subheader("Prediction Results")
+    st.write("0 = Non-Fraudulent, 1 = Fraudulent")
+    st.dataframe(predictions)
 
-# Save ANN model
-os.makedirs("models", exist_ok=True)
-ann_model.save("models/ann_model.h5")
-
-# Streamlit App
-st.title("Credit Card Fraud Detection")
-st.write("This app uses a Deep Learning model (ANN) to detect fraudulent transactions.")
-
-# User Input
-st.sidebar.header("User Input")
-amount = st.sidebar.number_input("Transaction Amount", min_value=0.0, value=50.0)
-time = st.sidebar.number_input("Transaction Time", min_value=0.0, value=10000.0)
-features = np.array([time, amount] + [0] * (X.shape[1] - 2)).reshape(1, -1)
-
-# Load ANN model
-ann_model = load_model("models/ann_model.h5")
-
-# Make prediction with ANN
-ann_pred = ann_model.predict(features)
-
-# Display predictions
-st.subheader("Prediction")
-st.write(f"ANN Prediction: {'Fraud' if ann_pred[0][0] > 0.5 else 'Not Fraud'}")
-
-# Evaluation metrics for ANN
-def plot_metrics():
-    st.subheader("Model Performance")
-    y_pred_ann = (ann_model.predict(X_test) > 0.5).astype(int)
-
-    st.write("Confusion Matrix (ANN):")
-    st.write(confusion_matrix(y_test, y_pred_ann))
-
-    st.write("ROC AUC Score (ANN):", roc_auc_score(y_test, y_pred_ann))
-
-if st.sidebar.button("Evaluate ANN Model"):
-    plot_metrics()
-
-# Plot ANN training history
-if st.sidebar.checkbox("Show ANN Training History"):
-    fig, ax = plt.subplots()
-    ax.plot(history.history['loss'], label='Training Loss')
-    ax.plot(history.history['val_loss'], label='Validation Loss')
-    ax.set_title('ANN Training and Validation Loss')
-    ax.set_xlabel('Epochs')
-    ax.set_ylabel('Loss')
-    ax.legend()
-    st.pyplot(fig)
+    # Summary of predictions
+    fraud_count = np.sum(predictions)
+    non_fraud_count = len(predictions) - fraud_count
+    st.write(f"Fraudulent Transactions: {fraud_count}")
+    st.write(f"Non-Fraudulent Transactions: {non_fraud_count}")
