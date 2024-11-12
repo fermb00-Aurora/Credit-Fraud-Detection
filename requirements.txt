@@ -1,11 +1,12 @@
 pandas
 matplotlib
-numpy
 seaborn
+numpy
 streamlit
 joblib
 scikit-learn
-fpdf
 pydot
 graphviz
+plotly
+Pillow
 
