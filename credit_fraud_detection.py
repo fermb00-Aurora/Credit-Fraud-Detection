@@ -11,9 +11,6 @@ from sklearn.metrics import confusion_matrix, classification_report, matthews_co
 # Suppress warnings
 warnings.filterwarnings("ignore")
 
-# Directory containing the saved models
-models_dir = "models"
-
 # Streamlit App Title
 st.title('Credit Card Fraud Detection - Using Pre-trained Models')
 
@@ -49,12 +46,12 @@ y = df['Class']
 size = st.sidebar.slider('Test Set Size', min_value=0.2, max_value=0.4)
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=size, random_state=42)
 
-# List of pre-trained models and their filenames
+# List of pre-trained models and their filenames (in the same directory as the .py file)
 model_filenames = {
-    'Logistic Regression': os.path.join(models_dir, 'logistic_regression.pkl'),
-    'kNN': os.path.join(models_dir, 'knn.pkl'),
-    'Random Forest': os.path.join(models_dir, 'random_forest.pkl'),
-    'Extra Trees': os.path.join(models_dir, 'extra_trees.pkl')
+    'Logistic Regression': 'logistic_regression.pkl',
+    'kNN': 'knn.pkl',
+    'Random Forest': 'random_forest.pkl',
+    'Extra Trees': 'extra_trees.pkl'
 }
 
 # Sidebar selection for the classifier
@@ -64,7 +61,10 @@ classifier = st.sidebar.selectbox('Select the classifier for evaluation', list(m
 model_filename = model_filenames[classifier]
 st.write(f"Loading the pre-trained model '{model_filename}'...")
 try:
-    model = joblib.load(model_filename)
+    # Load the model from the current directory
+    current_dir = os.path.dirname(__file__)
+    model_path = os.path.join(current_dir, model_filename)
+    model = joblib.load(model_path)
     st.write(f"Model '{classifier}' loaded successfully.")
 except Exception as e:
     st.error(f"Error loading the model: {e}")
