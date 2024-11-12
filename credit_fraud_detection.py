@@ -15,7 +15,10 @@ from sklearn.metrics import confusion_matrix, classification_report, matthews_co
 warnings.filterwarnings("ignore")
 
 # Streamlit App Title
-st.title('📊 Credit Card Fraud Detection - Advanced Web App')
+st.title('💳 Credit Card Fraud Detection Dashboard')
+
+st.sidebar.header("Navigation")
+page_selection = st.sidebar.radio("Go to:", ["Introduction", "Data Overview", "Feature Analysis", "Model Evaluation", "Download Report"])
 
 # Load the dataset with caching
 @st.cache_data
@@ -25,128 +28,141 @@ def load_data():
 
 df = load_data()
 
-# Display DataFrame details
-if st.sidebar.checkbox('Show what the dataframe looks like'):
-    st.write(df.head(100))
-    st.write('Shape of the dataframe: ', df.shape)
-    st.write('Data description:', df.describe())
+# Introduction
+if page_selection == "Introduction":
+    st.header("Introduction")
+    st.write("""
+    Welcome to the Credit Card Fraud Detection Dashboard. This app provides an in-depth analysis of fraud detection using various machine learning models.
+    Use the navigation on the left to explore different sections. You can:
+    - Get an overview of the data
+    - Analyze feature importance
+    - Evaluate pre-trained machine learning models
+    - Generate a detailed PDF report for download
+    """)
 
-# Fraud and Valid Transaction Analysis
-fraud = df[df['Class'] == 1]
-valid = df[df['Class'] == 0]
-outlier_percentage = (len(fraud) / len(valid)) * 100
+# Data Overview
+if page_selection == "Data Overview":
+    st.header("🔍 Data Overview")
+    
+    if st.sidebar.checkbox('Show the first 100 rows of the dataframe'):
+        st.dataframe(df.head(100))
+    
+    fraud = df[df['Class'] == 1]
+    valid = df[df['Class'] == 0]
+    outlier_percentage = (len(fraud) / len(valid)) * 100
 
-if st.sidebar.checkbox('Show fraud and valid transaction details'):
-    st.write(f'Fraudulent transactions are: {outlier_percentage:.3f}%')
-    st.write('Fraud Cases:', len(fraud))
-    st.write('Valid Cases:', len(valid))
+    st.write(f"**Fraudulent transactions represent**: {outlier_percentage:.3f}% of all transactions.")
+    st.write(f"**Total Fraud Cases**: {len(fraud)}")
+    st.write(f"**Total Valid Cases**: {len(valid)}")
 
-# Splitting features and labels
-X = df.drop(columns=['Class'])
-y = df['Class']
+    st.markdown("---")
+    st.subheader("Business Insight")
+    st.write("""
+    Fraudulent transactions are a small percentage of the total transactions, but they represent significant financial risk. Detecting these transactions early can save the business millions of dollars.
+    """)
 
-# Train-test split
-size = st.sidebar.slider('Test Set Size', min_value=0.2, max_value=0.4)
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=size, random_state=42)
+# Feature Analysis
+if page_selection == "Feature Analysis":
+    st.header("📈 Feature Importance Analysis")
+    
+    selected_features = st.sidebar.multiselect('Select features for model evaluation', df.drop(columns=['Class']).columns.tolist(), default=df.drop(columns=['Class']).columns.tolist())
+    X = df[selected_features]
+    y = df['Class']
 
-# List of pre-trained models and their filenames (same directory as the .py file)
-model_filenames = {
-    'Logistic Regression': 'logistic_regression.pkl',
-    'kNN': 'knn.pkl',
-    'Random Forest': 'random_forest.pkl',
-    'Extra Trees': 'extra_trees.pkl'
-}
+    st.write("Selected Features for Analysis:", selected_features)
 
-# Sidebar model selection
-classifier = st.sidebar.selectbox('Select the classifier for evaluation', list(model_filenames.keys()))
-model_filename = model_filenames[classifier]
+    # Feature importance plot
+    model_filenames = {
+        'Random Forest': 'random_forest.pkl',
+        'Extra Trees': 'extra_trees.pkl'
+    }
 
-# Load the selected model from the same directory
-st.write(f"Loading the pre-trained model '{classifier}'...")
-try:
-    model_path = os.path.join(os.path.dirname(__file__), model_filename)
-    model = joblib.load(model_path)
-    st.success(f"Model '{classifier}' loaded successfully.")
-except Exception as e:
-    st.error(f"Error loading the model: {e}")
-    st.stop()
+    feature_model = st.sidebar.selectbox('Select model for feature importance:', list(model_filenames.keys()))
+    model_filename = model_filenames[feature_model]
 
-# Feature Importance for tree-based models
-@st.cache_data
-def get_feature_importance(_model, X_train, y_train):
-    _model.fit(X_train, y_train)
-    return _model.feature_importances_
+    try:
+        model_path = os.path.join(os.path.dirname(__file__), model_filename)
+        model = joblib.load(model_path)
 
-# Feature Importance Plot
-if classifier in ['Random Forest', 'Extra Trees']:
-    if st.sidebar.checkbox('Show plot of feature importance'):
-        importance = get_feature_importance(model, X_train, y_train)
+        st.write(f"Model '{feature_model}' loaded successfully.")
+        model.fit(X, y)
+        importance = model.feature_importances_
+
+        st.subheader("Feature Importance Plot")
         plt.figure(figsize=(10, 6))
-        sns.barplot(x=importance, y=X_train.columns)
+        sns.barplot(x=importance, y=selected_features)
         plt.title('Feature Importance')
-        plt.xlabel('Importance')
+        plt.xlabel('Importance Score')
         plt.ylabel('Features')
         st.pyplot()
 
+    except Exception as e:
+        st.error(f"Error loading model: {e}")
+
 # Model Evaluation
-st.write(f"Evaluating {classifier}...")
+if page_selection == "Model Evaluation":
+    st.header("🧠 Model Evaluation")
+    size = st.sidebar.slider('Select Test Set Size', min_value=0.2, max_value=0.4)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=size, random_state=42)
 
-# Predictions
-y_pred_train = model.predict(X_train)
-y_pred_test = model.predict(X_test)
+    model_choices = {
+        'Logistic Regression': 'logistic_regression.pkl',
+        'k-Nearest Neighbors (kNN)': 'knn.pkl',
+        'Random Forest': 'random_forest.pkl',
+        'Extra Trees': 'extra_trees.pkl'
+    }
 
-# Enhanced Confusion Matrix with Heatmap
-def plot_confusion_matrix(y_true, y_pred, title):
-    cm = confusion_matrix(y_true, y_pred)
-    plt.figure(figsize=(8, 6))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', cbar=False)
-    plt.title(title)
-    plt.xlabel('Predicted')
-    plt.ylabel('Actual')
-    st.pyplot()
+    classifier = st.sidebar.selectbox("Select a model to evaluate:", list(model_choices.keys()))
+    model_file = model_choices[classifier]
 
-# Display metrics
-st.write("Train Set Metrics:")
-plot_confusion_matrix(y_train, y_pred_train, "Confusion Matrix (Train Set)")
-st.text(classification_report(y_train, y_pred_train))
+    try:
+        model_path = os.path.join(os.path.dirname(__file__), model_file)
+        model = joblib.load(model_path)
 
-st.write("Test Set Metrics:")
-plot_confusion_matrix(y_test, y_pred_test, "Confusion Matrix (Test Set)")
-st.text(classification_report(y_test, y_pred_test))
+        st.write(f"Evaluating {classifier}...")
+        y_pred_test = model.predict(X_test)
 
-mcc = matthews_corrcoef(y_test, y_pred_test)
-st.write(f'Matthews Correlation Coefficient (MCC): {mcc:.3f}')
+        # Confusion Matrix with Heatmap
+        cm = confusion_matrix(y_test, y_pred_test)
+        plt.figure(figsize=(8, 6))
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', cbar=False)
+        plt.title(f"Confusion Matrix for {classifier}")
+        plt.xlabel("Predicted")
+        plt.ylabel("Actual")
+        st.pyplot()
 
-# Generate PDF Report
-def generate_report():
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
+        # Classification Report
+        st.subheader("Classification Report")
+        st.text(classification_report(y_test, y_pred_test))
 
-    # Title
-    pdf.cell(200, 10, txt="Credit Card Fraud Detection Report", ln=True, align='C')
+        # Additional Metrics
+        mcc = matthews_corrcoef(y_test, y_pred_test)
+        st.write(f"Matthews Correlation Coefficient (MCC): {mcc:.3f}")
 
-    # Dataset Info
-    pdf.cell(200, 10, txt=f"Fraudulent Transactions: {outlier_percentage:.3f}%", ln=True)
-    pdf.cell(200, 10, txt=f"Fraud Cases: {len(fraud)} | Valid Cases: {len(valid)}", ln=True)
+    except Exception as e:
+        st.error(f"Error loading model: {e}")
 
-    # Model Info
-    pdf.cell(200, 10, txt=f"Selected Model: {classifier}", ln=True)
+# Download Report
+if page_selection == "Download Report":
+    st.header("📄 Generate PDF Report")
 
-    # Metrics
-    pdf.cell(200, 10, txt="Classification Report (Test Set):", ln=True)
-    pdf.multi_cell(0, 10, classification_report(y_test, y_pred_test))
+    def generate_report():
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", size=12)
 
-    pdf.cell(200, 10, txt=f"Matthews Correlation Coefficient (MCC): {mcc:.3f}", ln=True)
+        pdf.cell(200, 10, txt="Credit Card Fraud Detection Report", ln=True, align='C')
+        pdf.cell(200, 10, txt="Summary of Model Evaluation", ln=True)
 
-    # Save PDF
-    report_filename = "fraud_detection_report.pdf"
-    pdf.output(report_filename)
-    st.success(f"Report generated: {report_filename}")
-    with open(report_filename, "rb") as file:
-        st.download_button("Download Report", file, file_name=report_filename)
+        pdf.cell(200, 10, txt=f"Selected Model: {classifier}", ln=True)
+        pdf.multi_cell(0, 10, classification_report(y_test, y_pred_test))
+        pdf.cell(200, 10, txt=f"Matthews Correlation Coefficient: {mcc:.3f}", ln=True)
 
-# Button to download report
-if st.sidebar.button("Generate and Download Report"):
-    generate_report()
+        report_filename = "fraud_detection_report.pdf"
+        pdf.output(report_filename)
+        st.success("Report generated successfully.")
+        with open(report_filename, "rb") as file:
+            st.download_button("Download Report", file, file_name=report_filename)
 
+    if st.button("Generate Report"):
+        generate_report()
