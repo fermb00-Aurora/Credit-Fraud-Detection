@@ -1,7 +1,11 @@
 pandas
 matplotlib
+plotly
 numpy
+seaborn
 streamlit
 joblib
 scikit-learn
-
+fpdf2
+pydot
+graphviz
