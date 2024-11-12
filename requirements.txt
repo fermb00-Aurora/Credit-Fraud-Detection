@@ -2,7 +2,6 @@ pandas
 numpy
 matplotlib
 seaborn
-streamlit
-tensorflow
 scikit-learn
-keras
+imblearn
+tensorflow
