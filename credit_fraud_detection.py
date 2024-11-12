@@ -1,139 +1,239 @@
-# app.py
+import timeit
+import pandas as pd
+import matplotlib.pyplot as plt
+import plotly.express as px
+import numpy as np
+import warnings
+warnings.filterwarnings("ignore")
 
 import streamlit as st
-import numpy as np
-import tensorflow as tf
-from keras.models import load_model
-from sklearn.preprocessing import StandardScaler
+st.title('Credit Card Fraud Detection!')
 
-# Set the page configuration
-st.set_page_config(page_title="Credit Card Fraud Detection App", layout="wide", initial_sidebar_state="expanded")
+df=st.cache(pd.read_csv)('creditcard.csv')
 
-# Load the pre-trained ANN model and the scaler
-@st.cache_resource
-def load_ann_model():
-    return load_model("ann_model.h5")
+#df = df.sample(frac=0.1, random_state = 48)
 
-@st.cache_resource
-def load_scaler():
-    return StandardScaler()  # Assume the scaler was fitted during model training
+# Print shape and description of the data
+if st.sidebar.checkbox('Show what the dataframe looks like'):
+    st.write(df.head(100))
+    st.write('Shape of the dataframe: ',df.shape)
+    st.write('Data decription: \n',df.describe())
 
-# Load model and scaler
-model = load_ann_model()
-scaler = load_scaler()
 
-# Home Page Content
-st.image("https://source.unsplash.com/featured/?finance,creditcard", use_column_width=True)
-st.title("💳 Welcome to the Advanced Credit Card Fraud Detection System")
-st.markdown("""
-### What is this App?
-This web application utilizes a pre-trained Artificial Neural Network (ANN) model to detect fraudulent credit card transactions in real-time. With the rise of online transactions, identifying fraud early is crucial for preventing significant financial losses.
+# Print valid and fraud transactions
+fraud=df[df.Class==1]
+valid=df[df.Class==0]
+outlier_percentage=(df.Class.value_counts()[1]/df.Class.value_counts()[0])*100
 
-### Why Use This App?
-- **High Accuracy**: The ANN model was trained on a large dataset (`creditcard.csv`) and optimized for detecting fraudulent patterns.
-- **Real-Time Predictions**: Input transaction details and receive immediate predictions on whether the transaction is fraudulent.
-- **Business-Oriented Insights**: Analyze the impact of fraud detection on your organization's profitability.
+if st.sidebar.checkbox('Show fraud and valid transaction details'):
+    st.write('Fraudulent transactions are: %.3f%%'%outlier_percentage)
+    st.write('Fraud Cases: ',len(fraud))
+    st.write('Valid Cases: ',len(valid))
 
-### How to Use
-1. Click on **Fraud Detection** to input transaction details and make predictions.
-2. Click on **Business Insights** to understand potential savings from early fraud detection.
-3. Click on **Model Explanation** to learn more about the underlying ANN model.
+    
+#Obtaining X (features) and y (labels)
+X=df.drop(['Class'], axis=1)
+y=df.Class
 
-**Start Detecting Fraud Now!** Click one of the buttons below to begin.
-""")
+# Split the data into training and testing sets
+from sklearn.model_selection import train_test_split
+size = st.sidebar.slider('Test Set Size', min_value=0.2, max_value=0.4)
 
-# Call-to-Action Buttons
-col1, col2, col3 = st.columns(3)
-with col1:
-    if st.button("🔍 Go to Fraud Detection"):
-        fraud_detection = True
-    else:
-        fraud_detection = False
-with col2:
-    if st.button("📈 View Business Insights"):
-        business_insights = True
-    else:
-        business_insights = False
-with col3:
-    if st.button("🧠 Learn About the Model"):
-        model_explanation = True
-    else:
-        model_explanation = False
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = size, random_state = 42)
 
-# Fraud Detection Section
-if fraud_detection:
-    st.title("Fraud Detection")
+#Print shape of train and test sets
+if st.sidebar.checkbox('Show the shape of training and test set features and labels'):
+    st.write('X_train: ',X_train.shape)
+    st.write('y_train: ',y_train.shape)
+    st.write('X_test: ',X_test.shape)
+    st.write('y_test: ',y_test.shape)
+    
 
-    # User input for transaction details
-    st.header("Enter Transaction Details")
-    time = st.number_input("Time", min_value=0.0, max_value=172792.0, step=1.0)
-    amount = st.number_input("Amount", min_value=0.0, max_value=25691.16, step=0.1)
-    input_features = [time]
+#Import classification models and metrics
+from sklearn.linear_model import LogisticRegression
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier,ExtraTreesClassifier
+from sklearn.model_selection import cross_val_score
 
-    # Collect inputs for PCA features V1 to V28
-    for i in range(1, 29):
-        feature = st.number_input(f"V{i}", min_value=-75.0, max_value=75.0, step=0.1)
-        input_features.append(feature)
 
-    input_features.append(amount)
-    input_data = np.array(input_features).reshape(1, -1)
-    scaled_input = scaler.transform(input_data)
+logreg=LogisticRegression()
+svm=SVC()
+knn=KNeighborsClassifier()
+etree=ExtraTreesClassifier(random_state=42)
+rforest=RandomForestClassifier(random_state=42)
 
-    # Make prediction
-    prediction = model.predict(scaled_input)
-    predicted_class = int(prediction > 0.5)
 
-    # Display prediction result
-    st.header("Prediction Result")
-    if predicted_class == 1:
-        st.error("🚨 The transaction is predicted to be FRAUDULENT.")
-    else:
-        st.success("✅ The transaction is predicted to be NON-FRAUDULENT.")
+features=X_train.columns.tolist()
 
-# Business Insights Section
-if business_insights:
-    st.title("Business Insights")
-    st.write("""
-    Early detection of fraudulent transactions can lead to substantial savings. By correctly identifying fraudulent activities, businesses can:
-    - Reduce potential financial losses.
-    - Increase customer trust and satisfaction.
-    - Optimize fraud investigation processes.
 
-    ### Estimated Savings
-    Based on historical data, flagging a fraudulent transaction early can save approximately $5,000 per case.
-    """)
+#Feature selection through feature importance
+@st.cache
+def feature_sort(model,X_train,y_train):
+    #feature selection
+    mod=model
+    # fit the model
+    mod.fit(X_train, y_train)
+    # get importance
+    imp = mod.feature_importances_
+    return imp
 
-    fraud_count = np.random.randint(10, 50)  # Placeholder for demonstration
-    savings = fraud_count * 5000
-    st.metric("Potential Savings from Detected Fraudulent Transactions", f"${savings:,}")
+#Classifiers for feature importance
+clf=['Extra Trees','Random Forest']
+mod_feature = st.sidebar.selectbox('Which model for feature importance?', clf)
 
-# Model Explanation Section
-if model_explanation:
-    st.title("Model Explanation")
-    st.write("""
-    The model used in this app is a multi-layer Artificial Neural Network (ANN). It was trained using a large dataset of credit card transactions (`creditcard.csv`). The ANN is designed to:
-    - Capture complex patterns in the data using multiple hidden layers.
-    - Output a binary prediction: 0 (Non-Fraudulent) or 1 (Fraudulent).
+start_time = timeit.default_timer()
+if mod_feature=='Extra Trees':
+    model=etree
+    importance=feature_sort(model,X_train,y_train)
+elif mod_feature=='Random Forest':
+    model=rforest
+    importance=feature_sort(model,X_train,y_train)
+elapsed = timeit.default_timer() - start_time
+st.write('Execution Time for feature selection: %.2f minutes'%(elapsed/60))    
 
-    ### Model Structure
-    - **Input Layer**: 30 features (including PCA components and transaction amount).
-    - **Hidden Layers**: Three fully connected layers with ReLU activation functions.
-    - **Output Layer**: A single node with a sigmoid activation function for binary classification.
+#Plot of feature importance
+if st.sidebar.checkbox('Show plot of feature importance'):
+    plt.bar([x for x in range(len(importance))], importance)
+    plt.title('Feature Importance')
+    plt.xlabel('Feature (Variable Number)')
+    plt.ylabel('Importance')
+    st.pyplot()
 
-    ### Why ANN?
-    - **Advantages**:
-        - High flexibility in modeling complex relationships.
-        - Well-suited for large datasets with many features.
-    - **Disadvantages**:
-        - Requires significant computational resources.
-        - May overfit without proper regularization.
-    """)
+feature_imp=list(zip(features,importance))
+feature_sort=sorted(feature_imp, key = lambda x: x[1])
 
-    st.image("https://source.unsplash.com/featured/?neuralnetwork,diagram", use_column_width=True)
+n_top_features = st.sidebar.slider('Number of top features', min_value=5, max_value=20)
 
-# Footer
-st.markdown("---")
-st.markdown("### Developed by Fernando - AI Fraud Detection Specialist")
-st.markdown("This app leverages a pre-trained ANN model and Streamlit for an interactive and business-oriented experience.")
+top_features=list(list(zip(*feature_sort[-n_top_features:]))[0])
 
+if st.sidebar.checkbox('Show selected top features'):
+    st.write('Top %d features in order of importance are: %s'%(n_top_features,top_features[::-1]))
+
+X_train_sfs=X_train[top_features]
+X_test_sfs=X_test[top_features]
+
+X_train_sfs_scaled=X_train_sfs
+X_test_sfs_scaled=X_test_sfs
+
+
+
+#Import performance metrics, imbalanced rectifiers
+from sklearn.metrics import  confusion_matrix,classification_report,matthews_corrcoef
+from imblearn.over_sampling import SMOTE
+from imblearn.under_sampling import NearMiss
+np.random.seed(42) #for reproducibility since SMOTE and Near Miss use randomizations
+
+smt = SMOTE()
+nr = NearMiss()
+
+def compute_performance(model, X_train, y_train,X_test,y_test):
+    start_time = timeit.default_timer()
+    scores = cross_val_score(model, X_train, y_train, cv=3, scoring='accuracy').mean()
+    'Accuracy: ',scores
+    model.fit(X_train,y_train)
+    y_pred = model.predict(X_test)
+    cm=confusion_matrix(y_test,y_pred)
+    'Confusion Matrix: ',cm  
+    cr=classification_report(y_test, y_pred)
+    'Classification Report: ',cr
+    mcc= matthews_corrcoef(y_test, y_pred)
+    'Matthews Correlation Coefficient: ',mcc
+    elapsed = timeit.default_timer() - start_time
+    'Execution Time for performance computation: %.2f minutes'%(elapsed/60)
+    
+
+#Run different classification models with rectifiers
+if st.sidebar.checkbox('Run a credit card fraud detection model'):
+    
+    alg=['Extra Trees','Random Forest','k Nearest Neighbor','Support Vector Machine','Logistic Regression']
+    classifier = st.sidebar.selectbox('Which algorithm?', alg)
+    rectifier=['SMOTE','Near Miss','No Rectifier']
+    imb_rect = st.sidebar.selectbox('Which imbalanced class rectifier?', rectifier) 
+    
+    if classifier=='Logistic Regression':
+        model=logreg
+        if imb_rect=='No Rectifier':
+            compute_performance(model, X_train_sfs_scaled, y_train,X_test_sfs_scaled,y_test)
+        elif imb_rect=='SMOTE':
+                rect=smt
+                st.write('Shape of imbalanced y_train: ',np.bincount(y_train))
+                X_train_bal, y_train_bal = rect.fit_sample(X_train_sfs_scaled, y_train)
+                st.write('Shape of balanced y_train: ',np.bincount(y_train_bal))
+                compute_performance(model, X_train_bal, y_train_bal,X_test_sfs_scaled,y_test)
+        elif imb_rect=='Near Miss':
+            rect=nr
+            st.write('Shape of imbalanced y_train: ',np.bincount(y_train))
+            X_train_bal, y_train_bal = rect.fit_sample(X_train_sfs_scaled, y_train)
+            st.write('Shape of balanced y_train: ',np.bincount(y_train_bal))
+            compute_performance(model, X_train_bal, y_train_bal,X_test_sfs_scaled,y_test)
+    
+        
+    elif classifier == 'k Nearest Neighbor':
+        model=knn
+        if imb_rect=='No Rectifier':
+            compute_performance(model, X_train_sfs_scaled, y_train,X_test_sfs_scaled,y_test)
+        elif imb_rect=='SMOTE':
+                rect=smt
+                st.write('Shape of imbalanced y_train: ',np.bincount(y_train))
+                X_train_bal, y_train_bal = rect.fit_sample(X_train_sfs_scaled, y_train)
+                st.write('Shape of balanced y_train: ',np.bincount(y_train_bal))
+                compute_performance(model, X_train_bal, y_train_bal,X_test_sfs_scaled,y_test)
+        elif imb_rect=='Near Miss':
+            rect=nr
+            st.write('Shape of imbalanced y_train: ',np.bincount(y_train))
+            X_train_bal, y_train_bal = rect.fit_sample(X_train_sfs_scaled, y_train)
+            st.write('Shape of balanced y_train: ',np.bincount(y_train_bal))
+            compute_performance(model, X_train_bal, y_train_bal,X_test_sfs_scaled,y_test)    
+    
+    elif classifier == 'Support Vector Machine':
+        model=svm
+        if imb_rect=='No Rectifier':
+            compute_performance(model, X_train_sfs_scaled, y_train,X_test_sfs_scaled,y_test)
+        elif imb_rect=='SMOTE':
+                rect=smt
+                st.write('Shape of imbalanced y_train: ',np.bincount(y_train))
+                X_train_bal, y_train_bal = rect.fit_sample(X_train_sfs_scaled, y_train)
+                st.write('Shape of balanced y_train: ',np.bincount(y_train_bal))
+                compute_performance(model, X_train_bal, y_train_bal,X_test_sfs_scaled,y_test)
+        elif imb_rect=='Near Miss':
+            rect=nr
+            st.write('Shape of imbalanced y_train: ',np.bincount(y_train))
+            X_train_bal, y_train_bal = rect.fit_sample(X_train_sfs_scaled, y_train)
+            st.write('Shape of balanced y_train: ',np.bincount(y_train_bal))
+            compute_performance(model, X_train_bal, y_train_bal,X_test_sfs_scaled,y_test)    
+        
+    elif classifier == 'Random Forest':
+        model=rforest
+        if imb_rect=='No Rectifier':
+            compute_performance(model, X_train_sfs_scaled, y_train,X_test_sfs_scaled,y_test)
+        elif imb_rect=='SMOTE':
+                rect=smt
+                st.write('Shape of imbalanced y_train: ',np.bincount(y_train))
+                X_train_bal, y_train_bal = rect.fit_sample(X_train_sfs_scaled, y_train)
+                st.write('Shape of balanced y_train: ',np.bincount(y_train_bal))
+                compute_performance(model, X_train_bal, y_train_bal,X_test_sfs_scaled,y_test)
+        elif imb_rect=='Near Miss':
+            rect=nr
+            st.write('Shape of imbalanced y_train: ',np.bincount(y_train))
+            X_train_bal, y_train_bal = rect.fit_sample(X_train_sfs_scaled, y_train)
+            st.write('Shape of balanced y_train: ',np.bincount(y_train_bal))
+            compute_performance(model, X_train_bal, y_train_bal,X_test_sfs_scaled,y_test)  
+            
+    elif classifier == 'Extra Trees':
+        model=etree
+        if imb_rect=='No Rectifier':
+            compute_performance(model, X_train_sfs_scaled, y_train,X_test_sfs_scaled,y_test)
+        elif imb_rect=='SMOTE':
+                rect=smt
+                st.write('Shape of imbalanced y_train: ',np.bincount(y_train))
+                X_train_bal, y_train_bal = rect.fit_sample(X_train_sfs_scaled, y_train)
+                st.write('Shape of balanced y_train: ',np.bincount(y_train_bal))
+                compute_performance(model, X_train_bal, y_train_bal,X_test_sfs_scaled,y_test)
+        elif imb_rect=='Near Miss':
+            rect=nr
+            st.write('Shape of imbalanced y_train: ',np.bincount(y_train))
+            X_train_bal, y_train_bal = rect.fit_sample(X_train_sfs_scaled, y_train)
+            st.write('Shape of balanced y_train: ',np.bincount(y_train_bal))
+            compute_performance(model, X_train_bal, y_train_bal,X_test_sfs_scaled,y_test)
 
