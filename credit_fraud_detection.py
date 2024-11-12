@@ -14,9 +14,6 @@ from sklearn.metrics import confusion_matrix, classification_report, matthews_co
 # Suppress warnings
 warnings.filterwarnings("ignore")
 
-# Directory for models
-models_dir = "models"
-
 # Streamlit App Title
 st.title('📊 Credit Card Fraud Detection - Advanced Web App')
 
@@ -52,7 +49,7 @@ y = df['Class']
 size = st.sidebar.slider('Test Set Size', min_value=0.2, max_value=0.4)
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=size, random_state=42)
 
-# Load models
+# List of pre-trained models and their filenames (same directory as the .py file)
 model_filenames = {
     'Logistic Regression': 'logistic_regression.pkl',
     'kNN': 'knn.pkl',
@@ -62,18 +59,19 @@ model_filenames = {
 
 # Sidebar model selection
 classifier = st.sidebar.selectbox('Select the classifier for evaluation', list(model_filenames.keys()))
-model_path = os.path.join(models_dir, model_filenames[classifier])
+model_filename = model_filenames[classifier]
 
-# Load the selected model
+# Load the selected model from the same directory
 st.write(f"Loading the pre-trained model '{classifier}'...")
 try:
+    model_path = os.path.join(os.path.dirname(__file__), model_filename)
     model = joblib.load(model_path)
     st.success(f"Model '{classifier}' loaded successfully.")
 except Exception as e:
     st.error(f"Error loading the model: {e}")
     st.stop()
 
-# Feature Importance
+# Feature Importance for tree-based models
 @st.cache_data
 def get_feature_importance(_model, X_train, y_train):
     _model.fit(X_train, y_train)
@@ -97,11 +95,11 @@ st.write(f"Evaluating {classifier}...")
 y_pred_train = model.predict(X_train)
 y_pred_test = model.predict(X_test)
 
-# Confusion Matrix with Heatmap
+# Enhanced Confusion Matrix with Heatmap
 def plot_confusion_matrix(y_true, y_pred, title):
     cm = confusion_matrix(y_true, y_pred)
     plt.figure(figsize=(8, 6))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', cbar=False)
     plt.title(title)
     plt.xlabel('Predicted')
     plt.ylabel('Actual')
