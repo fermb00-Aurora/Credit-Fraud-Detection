@@ -1,50 +1,3 @@
-import timeit
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-import plotly.express as px
-import plotly.graph_objects as go
-import numpy as np
-import warnings
-import streamlit as st
-import joblib
-import os
-from fpdf import FPDF
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix, classification_report, matthews_corrcoef, f1_score, accuracy_score
-
-# Suppress warnings
-warnings.filterwarnings("ignore")
-
-# Streamlit App Title and Sidebar
-st.set_page_config(page_title="Credit Card Fraud Detection", layout="wide")
-st.title('💳 Credit Card Fraud Detection Dashboard')
-st.sidebar.header("Menu")
-page_selection = st.sidebar.radio("Navigate:", [
-    "Introduction", "Exploratory Data Analysis", "Feature Selection", 
-    "Model Evaluation", "Real-Time Prediction", "Download Report", "Feedback"
-])
-
-# Load the dataset
-@st.cache_data
-def load_data():
-    df = pd.read_csv('creditcard.csv')
-    return df
-
-df = load_data()
-
-# Introduction
-if page_selection == "Introduction":
-    st.header("📘 Executive Summary")
-    st.write("""
-    Welcome to the Credit Card Fraud Detection Dashboard, tailored for executives in the banking sector.
-    This app offers comprehensive analysis and evaluation of machine learning models for fraud detection.
-    Key Features:
-    - Detailed Exploratory Data Analysis (EDA)
-    - Advanced Feature Selection for model optimization
-    - Evaluation of pre-trained models like Logistic Regression, kNN, Random Forest, and Extra Trees
-    """)
-
 # Feature Selection
 if page_selection == "Feature Selection":
     st.header("🔍 Feature Selection")
@@ -60,98 +13,44 @@ if page_selection == "Feature Selection":
     model_path = os.path.join(os.path.dirname(__file__), model_choices[feature_model])
     model = joblib.load(model_path)
 
-    # Check if the selected model supports feature importance
-    if hasattr(model, "feature_importances_"):
+    # Handle feature importance differently based on the model type
+    if feature_model in ['Random Forest', 'Extra Trees']:
         feature_importances = model.feature_importances_
-    else:
-        st.warning(f"The selected model '{feature_model}' does not support feature importance directly. Using coefficients instead.")
-        feature_importances = np.abs(model.coef_[0]) if hasattr(model, "coef_") else np.zeros(df.drop(columns=['Class']).shape[1])
+        importance_method = "Feature Importances"
+    elif feature_model == 'Logistic Regression':
+        if hasattr(model, "coef_"):
+            feature_importances = np.abs(model.coef_[0])
+            importance_method = "Model Coefficients (Absolute Value)"
+        else:
+            st.warning("Logistic Regression model does not have coefficients.")
+            feature_importances = np.zeros(len(df.drop(columns=['Class']).columns))
+    elif feature_model == 'k-Nearest Neighbors (kNN)':
+        st.warning("kNN does not support feature importance analysis.")
+        feature_importances = np.zeros(len(df.drop(columns=['Class']).columns))
+        importance_method = "Not Available"
 
-    features = df.drop(columns=['Class']).columns
-    importance_df = pd.DataFrame({'Feature': features, 'Importance': feature_importances})
-    importance_df = importance_df.sort_values(by='Importance', ascending=False)
+    # Display feature importance information
+    if feature_importances is not None and feature_importances.any():
+        features = df.drop(columns=['Class']).columns
+        importance_df = pd.DataFrame({'Feature': features, 'Importance': feature_importances})
+        importance_df = importance_df.sort_values(by='Importance', ascending=False)
 
-    # Checkbox to show plot of feature importance
-    show_plot = st.sidebar.checkbox("Show plot of feature importance")
+        st.subheader(f"Top Features Based on {importance_method}")
+        st.write("The following features have the highest impact on the model's decision-making:")
 
-    # Slider for selecting the number of top features
-    num_top_features = st.sidebar.slider("Number of top features", min_value=5, max_value=20, value=15)
+        # Top 3 Most Important Features
+        for i in range(3):
+            st.write(f"🏅 **{i+1}. {importance_df.iloc[i]['Feature']}** - Importance: **{importance_df.iloc[i]['Importance']:.4f}**")
 
-    # Checkbox to display selected top features
-    show_selected_features = st.sidebar.checkbox("Show selected top features")
+        # Top 3 Least Important Features
+        for i in range(1, 4):
+            st.write(f"🥉 **{4-i}. {importance_df.iloc[-i]['Feature']}** - Importance: **{importance_df.iloc[-i]['Importance']:.4f}**")
 
-    if show_plot:
-        fig_imp = px.bar(importance_df.head(num_top_features), x='Importance', y='Feature', orientation='h',
-                         title=f"Top Features by Importance ({feature_model})")
+        # Feature Importance Bar Plot
+        fig_imp = px.bar(importance_df, x='Importance', y='Feature', orientation='h', title=f"Feature Importance ({feature_model})")
         st.plotly_chart(fig_imp)
+    else:
+        st.info(f"Feature importance is not available for the selected model '{feature_model}'.")
 
-    if show_selected_features:
-        st.write("Selected Top Features:")
-        st.write(importance_df.head(num_top_features))
-
-# Model Evaluation
-if page_selection == "Model Evaluation":
-    st.header("🧠 Model Evaluation")
-    classifier = st.sidebar.selectbox("Select Model for Evaluation", list(model_choices.keys()))
-    model_file = model_choices[classifier]
-    model_path = os.path.join(os.path.dirname(__file__), model_file)
-    model = joblib.load(model_path)
-
-    test_size = st.sidebar.slider('Test Set Size', min_value=0.2, max_value=0.4)
-    X = df.drop(columns=['Class'])
-    y = df['Class']
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
-
-    y_pred = model.predict(X_test)
-
-    # Enhanced Confusion Matrix
-    cm = confusion_matrix(y_test, y_pred)
-    fig_cm = plt.figure(figsize=(10, 8))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='YlOrBr')
-    plt.title(f"Confusion Matrix for {classifier}")
-    plt.xlabel("Predicted")
-    plt.ylabel("Actual")
-    st.pyplot(fig_cm)
-
-    # Enhanced Classification Report
-    st.subheader("📋 Enhanced Classification Report")
-    report_df = pd.DataFrame(classification_report(y_test, y_pred, output_dict=True)).transpose()
-    st.dataframe(report_df.style.background_gradient(cmap='coolwarm'))
-
-    # Additional Metrics
-    f1 = f1_score(y_test, y_pred)
-    accuracy = accuracy_score(y_test, y_pred)
-    mcc = matthews_corrcoef(y_test, y_pred)
-
-    st.write(f"**F1-Score**: {f1:.3f}")
-    st.write(f"**Accuracy**: {accuracy:.3f}")
-    st.write(f"**Matthews Correlation Coefficient (MCC)**: {mcc:.3f}")
-
-# Download Report
-if page_selection == "Download Report":
-    st.header("📄 Generate PDF Report")
-
-    def generate_report():
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", size=12)
-        pdf.cell(200, 10, txt="Credit Card Fraud Detection Report", ln=True, align='C')
-        pdf.multi_cell(0, 10, txt=str(report_df))
-        pdf.cell(200, 10, txt=f"F1-Score: {f1:.3f}", ln=True)
-        pdf.cell(200, 10, txt=f"Accuracy: {accuracy:.3f}", ln=True)
-        pdf.cell(200, 10, txt=f"MCC: {mcc:.3f}", ln=True)
-        report_file = "fraud_detection_report.pdf"
-        pdf.output(report_file)
-        with open(report_file, "rb") as file:
-            st.download_button("Download Report", file, file_name=report_file)
-
-    st.button("Generate Report", on_click=generate_report)
-
-# Feedback
-if page_selection == "Feedback":
-    st.header("💬 Feedback")
-    feedback = st.text_area("Provide your feedback here:")
-    if st.button("Submit Feedback"):
-        st.success("Thank you for your feedback!")
 
 
