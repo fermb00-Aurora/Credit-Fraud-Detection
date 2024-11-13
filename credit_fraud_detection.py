@@ -62,16 +62,16 @@ def load_data():
     try:
         # Load the dataset from the same directory as the script
         script_dir = Path(__file__).parent
-        data_path = script_dir / 'creditcard.csv'
+        data_path = script_dir / 'creditdata.csv'
         
         # Check if the file exists
         if not data_path.exists():
-            st.error(f"The file 'creditcard.csv' was not found in the directory: {script_dir}")
-            # Optional: List files in the directory for debugging
-            files = list(script_dir.iterdir())
+            st.error(f"The file 'creditdata.csv' was not found in the directory: {script_dir}")
+            # List files in the directory for debugging
+            files = os.listdir(script_dir)
             st.info("Files in the script directory:")
             for file in files:
-                st.write(f"- {file.name}")
+                st.write(f"- {file}")
             return None
         
         # Load the dataset
@@ -92,11 +92,11 @@ def load_model(model_filename):
         # Check if the model file exists
         if not model_path.exists():
             st.error(f"Model file '{model_filename}' not found in the directory: {script_dir}")
-            # Optional: List files in the directory for debugging
-            files = list(script_dir.iterdir())
+            # List files in the directory for debugging
+            files = os.listdir(script_dir)
             st.info("Files in the script directory:")
             for file in files:
-                st.write(f"- {file.name}")
+                st.write(f"- {file}")
             return None
         
         # Load the model
