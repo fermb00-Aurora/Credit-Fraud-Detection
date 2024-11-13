@@ -624,8 +624,15 @@ elif page_selection == "Download Report":
                     # Confusion Matrix Visualization
                     # Save the confusion matrix plot as a temporary file
                     fig_cm, ax_cm = plt.subplots(figsize=(6, 4))
-                    sns.heatmap(confusion_matrix(y_test, y_pred), annot=True, fmt='d', cmap='YlOrBr',
-                                xticklabels=['Valid', 'Fraud'], yticklabels=['Valid', 'Fraud'], ax=ax_cm)
+                    sns.heatmap(
+                        confusion_matrix(y_test, y_pred),
+                        annot=True,
+                        fmt='d',
+                        cmap='YlOrBr',
+                        xticklabels=['Valid', 'Fraud'],
+                        yticklabels=['Valid', 'Fraud'],
+                        ax=ax_cm
+                    )
                     ax_cm.set_xlabel("Predicted")
                     ax_cm.set_ylabel("Actual")
                     ax_cm.set_title(f"Confusion Matrix for {classifier}")
@@ -708,3 +715,4 @@ elif page_selection == "Feedback":
 
 else:
     st.error("Page not found.")
+
