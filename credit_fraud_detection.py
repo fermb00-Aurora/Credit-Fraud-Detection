@@ -16,30 +16,24 @@ from sklearn.metrics import confusion_matrix, classification_report, matthews_co
 # Suppress warnings
 warnings.filterwarnings("ignore")
 
-# Custom CSS for Light Sidebar
+# Streamlit App Title and Sidebar
+st.set_page_config(page_title="Credit Card Fraud Detection", layout="wide")
+st.title('💳 Credit Card Fraud Detection Dashboard')
+
+# Custom Sidebar Design
 st.markdown("""
     <style>
-    [data-testid="stSidebar"] {
-        background-color: #f0f0f0;
-        color: #333333;
-    }
-    [data-testid="stSidebar"] h2 {
-        color: #333333;
-    }
-    [data-testid="stSidebar"] label {
-        color: #333333;
-    }
-    .css-1v3fvcr:hover {
-        background-color: #e0e0e0;
-        color: #000000;
-    }
+        .css-1d391kg {
+            background-color: #f0f2f6 !important;
+        }
+        .css-qbe2hs {
+            color: #1c1e21 !important;
+        }
     </style>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
-# Streamlit App Title and Sidebar
-st.title('💳 Credit Card Fraud Detection Dashboard')
 st.sidebar.header("Menu")
-page_selection = st.sidebar.radio("Navigate:", ["Introduction", "Data Overview", "Exploratory Data Analysis", "Feature Importance", "Model Evaluation", "Real-Time Prediction", "Download Report", "Feedback"])
+page_selection = st.sidebar.radio("Navigate:", ["Executive Summary", "Data Overview", "Exploratory Data Analysis", "Feature Importance", "Model Evaluation", "Real-Time Prediction", "Download Report", "Feedback"])
 
 # Load the dataset
 @st.cache_data
@@ -49,14 +43,19 @@ def load_data():
 
 df = load_data()
 
-# Introduction
-if page_selection == "Introduction":
-    st.header("📘 Introduction")
-    st.write("""
-    Welcome to the enhanced Credit Card Fraud Detection Dashboard! This app provides:
-    - Comprehensive data analysis and visualization.
-    - Evaluation of pre-trained machine learning models (Logistic Regression, kNN, Random Forest, Extra Trees).
-    - Business insights, cost-benefit analysis, and a detailed report.
+# Executive Summary
+if page_selection == "Executive Summary":
+    st.header("🏦 Executive Summary")
+    st.markdown("""
+    ## Welcome to the Credit Card Fraud Detection Dashboard
+
+    This interactive web application is designed for financial executives and decision-makers to quickly identify and analyze fraudulent transactions. It provides:
+    - **In-depth Data Analysis**: Explore transaction data and detect patterns of fraudulent behavior.
+    - **Model Evaluation**: Assess the performance of pre-trained models (Logistic Regression, kNN, Random Forest, Extra Trees) for fraud detection.
+    - **Business Insights**: Actionable insights to help mitigate financial risks associated with credit card fraud.
+    - **Automated PDF Reporting**: Generate detailed, shareable reports for decision-making.
+
+    Navigate through the menu to explore data, evaluate model performance, and gain actionable insights.
     """)
 
 # Data Overview
@@ -101,17 +100,11 @@ if page_selection == "Feature Importance":
     importance_df = importance_df.sort_values(by='Importance', ascending=False)
 
     st.subheader("Top 3 Most and Least Important Features")
-    st.write("These features have the highest and lowest impact on predicting fraud cases.")
-
-    # Top 3 Most Important Features
     for i in range(3):
         st.write(f"🏅 **{i+1}. {importance_df.iloc[i]['Feature']}** - Importance: **{importance_df.iloc[i]['Importance']:.4f}**")
-
-    # Top 3 Least Important Features
     for i in range(1, 4):
         st.write(f"🥉 **{4-i}. {importance_df.iloc[-i]['Feature']}** - Importance: **{importance_df.iloc[-i]['Importance']:.4f}**")
 
-    # Feature Importance Bar Plot
     fig_imp = px.bar(importance_df, x='Importance', y='Feature', orientation='h', title="Feature Importance")
     st.plotly_chart(fig_imp)
 
@@ -137,7 +130,6 @@ if page_selection == "Model Evaluation":
 
     y_pred = model.predict(X_test)
 
-    # Enhanced Confusion Matrix
     cm = confusion_matrix(y_test, y_pred)
     fig_cm = plt.figure(figsize=(8, 6))
     sns.heatmap(cm, annot=True, fmt='d', cmap='YlOrBr')
@@ -146,37 +138,47 @@ if page_selection == "Model Evaluation":
     plt.ylabel("Actual")
     st.pyplot(fig_cm)
 
-    # Enhanced Classification Report
-    st.subheader("📋 Enhanced Classification Report")
     report_df = pd.DataFrame(classification_report(y_test, y_pred, output_dict=True)).transpose()
     st.dataframe(report_df.style.background_gradient(cmap='coolwarm'))
 
-# Report Generation
+# Real-Time Prediction
+if page_selection == "Real-Time Prediction":
+    st.header("🔍 Real-Time Prediction")
+    uploaded_file = st.file_uploader("Upload CSV for Prediction", type=["csv"])
+    if uploaded_file:
+        new_data = pd.read_csv(uploaded_file)
+        predictions = model.predict(new_data)
+        new_data['Predictions'] = predictions
+        st.dataframe(new_data)
+
+# Download Report
 if page_selection == "Download Report":
     st.header("📄 Generate PDF Report")
 
     def generate_report():
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", size=12)
-        pdf.cell(200, 10, txt="Credit Card Fraud Detection Report", ln=True, align='C')
-        pdf.multi_cell(0, 10, classification_report(y_test, y_pred))
-        pdf.cell(200, 10, txt=f"F1-Score: {f1:.3f}", ln=True)
-        pdf.cell(200, 10, txt=f"Accuracy: {accuracy:.3f}", ln=True)
-        pdf.cell(200, 10, txt=f"MCC: {mcc:.3f}", ln=True)
-        report_file = "fraud_detection_report.pdf"
-        pdf.output(report_file)
-        with open(report_file, "rb") as file:
-            st.download_button("Download Report", file, file_name=report_file)
+        try:
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", size=12)
+            pdf.cell(200, 10, txt="Credit Card Fraud Detection Report", ln=True, align='C')
+            report_content = classification_report(y_test, y_pred)
+            pdf.multi_cell(0, 10, report_content)
+            report_file = "fraud_detection_report.pdf"
+            pdf.output(report_file)
+            with open(report_file, "rb") as file:
+                st.download_button("Download Report", file, file_name=report_file)
+        except Exception as e:
+            st.error(f"Error generating report: {e}")
 
     st.button("Generate Report", on_click=generate_report)
 
-# Feedback Section
+# Feedback
 if page_selection == "Feedback":
     st.header("💬 Feedback")
     feedback = st.text_area("Provide your feedback here:")
     if st.button("Submit Feedback"):
         st.success("Thank you for your feedback!")
+
 
 
 
