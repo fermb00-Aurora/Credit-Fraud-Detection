@@ -513,9 +513,9 @@ if df is not None:
             st.subheader("📈 Additional Evaluation Metrics")
             st.markdown("""
             **Precision:** Measures the proportion of positive identifications that were actually correct. High precision indicates a low false positive rate.
-    
+
             **Recall (Sensitivity):** Measures the proportion of actual positives that were identified correctly. High recall indicates a low false negative rate.
-    
+
             **F2-Score:** Places more emphasis on recall than precision, useful when false negatives are more critical than false positives.
             """)
 
@@ -539,7 +539,7 @@ if df is not None:
             **Total Test Samples:** {len(y_test)}  
             **Fraudulent Transactions in Test Set:** {y_test.sum()} ({(y_test.sum() / len(y_test)) * 100:.4f}%)  
             **Valid Transactions in Test Set:** {len(y_test) - y_test.sum()} ({100 - (y_test.sum() / len(y_test)) * 100:.4f}%)  
-    
+
             **Performance Overview:**
             - **Accuracy:** {metrics['accuracy']:.4f}
             - **F1-Score:** {metrics['f1_score']:.4f}
@@ -783,3 +783,4 @@ if df is not None:
 
     else:
         st.error("Page not found.")
+
