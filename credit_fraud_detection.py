@@ -60,23 +60,8 @@ page_selection = st.sidebar.radio("Go to", [
 @st.cache_data
 def load_data():
     try:
-        # Load the dataset from the same directory as the script
-        # Adjusted to handle cases where __file__ may not be defined
-        script_dir = Path(__file__).parent if '__file__' in globals() else Path('.')
-        data_path = script_dir / 'creditcard.csv'
-        
-        # Check if the file exists
-        if not data_path.exists():
-            st.error(f"The file 'creditcard.csv' was not found in the directory: {script_dir}")
-            # Optional: List files in the directory for debugging
-            files = list(script_dir.iterdir())
-            st.info("Files in the script directory:")
-            for file in files:
-                st.write(f"- {file.name}")
-            return None
-        
-        # Load the dataset
-        df = pd.read_csv(data_path)
+        # Load the dataset directly, assuming it's in the same directory
+        df = pd.read_csv('creditcard.csv')
         return df
     except Exception as e:
         st.error(f"Error loading data: {e}")
@@ -86,23 +71,8 @@ def load_data():
 @st.cache_resource
 def load_model(model_filename):
     try:
-        # Load the model from the same directory as the script
-        # Adjusted to handle cases where __file__ may not be defined
-        script_dir = Path(__file__).parent if '__file__' in globals() else Path('.')
-        model_path = script_dir / model_filename
-        
-        # Check if the model file exists
-        if not model_path.exists():
-            st.error(f"Model file '{model_filename}' not found in the directory: {script_dir}")
-            # Optional: List files in the directory for debugging
-            files = list(script_dir.iterdir())
-            st.info("Files in the script directory:")
-            for file in files:
-                st.write(f"- {file.name}")
-            return None
-        
-        # Load the model
-        model = joblib.load(model_path)
+        # Load the model directly, assuming it's in the same directory
+        model = joblib.load(model_filename)
         return model
     except Exception as e:
         st.error(f"Error loading model '{model_filename}': {e}")
