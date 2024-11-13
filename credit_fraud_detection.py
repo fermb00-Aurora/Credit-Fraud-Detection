@@ -442,6 +442,7 @@ if page_selection == "Model Evaluation":
         if roc_available:
             fpr, tpr, thresholds = roc_curve(y_test, y_proba)
             roc_auc = auc(fpr, tpr)
+            st.session_state['model_evaluation']['roc_auc'] = roc_auc
 
             fig_roc = px.area(
                 x=fpr, y=tpr,
@@ -572,26 +573,25 @@ if page_selection == "Simulator":
 if page_selection == "Download Report":
     st.header("📄 Download Report")
     st.markdown("""
-    **Generate and Download Comprehensive PDF Reports:**
-    Compile all your analyses, visualizations, and insights into a downloadable PDF report for offline review and sharing with stakeholders.
+    **Generate and Download a Comprehensive PDF Report:**
+    Compile your analysis and model evaluation results into a downloadable PDF report for offline review and sharing with stakeholders.
     """)
 
     if st.button("Generate Report"):
         with st.spinner("Generating PDF report..."):
             try:
                 # Check if model evaluation data is available
-                if 'y_test' not in st.session_state['model_evaluation'] or \
-                   'y_pred' not in st.session_state['model_evaluation'] or \
-                   'classifier' not in st.session_state['model_evaluation']:
+                eval_data = st.session_state['model_evaluation']
+                required_keys = ['y_test', 'y_pred', 'classifier', 'metrics']
+                if not all(key in eval_data for key in required_keys):
                     st.error("Please perform a model evaluation before generating the report.")
                 else:
-                    # Retrieve evaluation data
-                    y_test = st.session_state['model_evaluation']['y_test']
-                    y_pred = st.session_state['model_evaluation']['y_pred']
-                    classifier = st.session_state['model_evaluation']['classifier']
-                    metrics = st.session_state['model_evaluation']['metrics']
-                    roc_auc = st.session_state['model_evaluation'].get('roc_auc', "N/A")
-                    y_proba = st.session_state['model_evaluation'].get('y_proba', None)
+                    y_test = eval_data['y_test']
+                    y_pred = eval_data['y_pred']
+                    classifier = eval_data['classifier']
+                    metrics = eval_data['metrics']
+                    roc_auc = eval_data.get('roc_auc', "N/A")
+                    y_proba = eval_data.get('y_proba', None)
 
                     # Initialize PDF
                     pdf = FPDF()
@@ -628,97 +628,71 @@ if page_selection == "Download Report":
                     pdf.multi_cell(0, 10, data_overview)
                     pdf.ln(5)
 
-                    # Exploratory Data Analysis
+                    # Model Evaluation Summary
                     pdf.set_font("Arial", 'B', 12)
-                    pdf.cell(0, 10, "Exploratory Data Analysis", ln=True)
-                    pdf.set_font("Arial", '', 12)
-                    eda_summary = (
-                        "- **Feature Correlation:** High inter-correlation among V1 to V28 indicates potential multicollinearity. The 'Amount' feature shows moderate correlation with other features.\n"
-                        "- **Transaction Patterns:** Peak transaction times and distribution of transaction amounts provide insights into typical and anomalous behaviors.\n"
-                        "- **Average Transaction Amount:** Understanding average transaction amounts per hour can help identify unusual spikes that may signify fraudulent activities.\n"
-                        "- **Fraud Rate Analysis:** Monitoring fraud rates across different hours helps in allocating resources effectively and enhancing surveillance during high-risk periods."
-                    )
-                    pdf.multi_cell(0, 10, eda_summary)
-                    pdf.ln(5)
-
-                    # Feature Importance
-                    pdf.set_font("Arial", 'B', 12)
-                    pdf.cell(0, 10, "Feature Importance", ln=True)
-                    pdf.set_font("Arial", '', 12)
-                    feature_importance_summary = (
-                        "- **High-Impact Features:** Identifying key features that significantly influence fraud detection aids in enhancing data collection and monitoring processes.\n"
-                        "- **Low-Impact Features:** Recognizing features with minimal influence can streamline data preprocessing and reduce computational overhead without compromising model performance.\n"
-                        "- **Model Selection:** Different models may prioritize different features, offering diverse perspectives on what drives fraudulent activities."
-                    )
-                    pdf.multi_cell(0, 10, feature_importance_summary)
-                    pdf.ln(5)
-
-                    # Model Evaluation
-                    pdf.set_font("Arial", 'B', 12)
-                    pdf.cell(0, 10, "Model Evaluation", ln=True)
+                    pdf.cell(0, 10, "Model Evaluation Summary", ln=True)
                     pdf.set_font("Arial", '', 12)
                     model_evaluation_summary = (
-                        "- **Performance Metrics:** Models are evaluated based on Accuracy, F1-Score, Matthews Correlation Coefficient (MCC), Precision, Recall, and F2-Score.\n"
-                        "- **ROC Curve Analysis:** The ROC-AUC provides insights into the trade-off between true positive and false positive rates, indicating model effectiveness.\n"
-                        "- **Personalized Metrics:** Detailed performance metrics tailored to the specific model and dataset configuration offer a clear understanding of model strengths and weaknesses."
+                        f"- **Model:** {classifier}\n"
+                        f"- **Test Set Size:** {int(test_size)}%\n"
+                        f"- **Total Test Samples:** {len(y_test)}\n"
+                        f"- **Fraudulent Transactions in Test Set:** {y_test.sum()} ({(y_test.sum() / len(y_test)) * 100:.4f}%)\n"
+                        f"- **Valid Transactions in Test Set:** {len(y_test) - y_test.sum()} ({100 - (y_test.sum() / len(y_test)) * 100:.4f}%)\n"
+                        f"- **Accuracy:** {metrics['accuracy']:.4f}\n"
+                        f"- **F1-Score:** {metrics['f1_score']:.4f}\n"
+                        f"- **Matthews Correlation Coefficient (MCC):** {metrics['mcc']:.4f}\n"
+                        f"- **Precision:** {metrics['precision']:.4f}\n"
+                        f"- **Recall:** {metrics['recall']:.4f}\n"
+                        f"- **F2-Score:** {metrics['f2_score']:.4f}\n"
+                        f"- **ROC-AUC:** {roc_auc if roc_auc != 'N/A' else 'N/A'}\n"
                     )
                     pdf.multi_cell(0, 10, model_evaluation_summary)
                     pdf.ln(5)
 
-                    # Adding Visualizations to PDF
-                    # Correlation Heatmap
-                    fig_corr, ax_corr = plt.subplots(figsize=(10, 8))
-                    sns.heatmap(df.corr(), cmap='YlOrBr', ax=ax_corr)
-                    plt.title('Correlation Heatmap of Features')
-                    plt.tight_layout()
-                    corr_image = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
-                    plt.savefig(corr_image.name, dpi=300)
-                    plt.close(fig_corr)
-                    pdf.add_page()
-                    pdf.set_font("Arial", 'B', 12)
-                    pdf.cell(0, 10, "Correlation Heatmap of Features", ln=True, align='C')
-                    pdf.image(corr_image.name, x=10, y=20, w=190)
-                    os.unlink(corr_image.name)  # Delete the temporary file
-                    pdf.ln(100)  # Adjust as per image size
-
-                    # Confusion Matrix
+                    # Confusion Matrix Visualization
+                    # Save the confusion matrix plot as a temporary file
                     fig_cm, ax_cm = plt.subplots(figsize=(6, 4))
                     sns.heatmap(confusion_matrix(y_test, y_pred), annot=True, fmt='d', cmap='YlOrBr',
                                 xticklabels=['Valid', 'Fraud'], yticklabels=['Valid', 'Fraud'], ax=ax_cm)
-                    plt.xlabel("Predicted")
-                    plt.ylabel("Actual")
-                    plt.title(f"Confusion Matrix for {classifier}")
-                    cm_image = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
-                    plt.savefig(cm_image.name, dpi=300)
+                    ax_cm.set_xlabel("Predicted")
+                    ax_cm.set_ylabel("Actual")
+                    ax_cm.set_title(f"Confusion Matrix for {classifier}")
+                    plt.tight_layout()
+                    cm_image_path = tempfile.NamedTemporaryFile(delete=False, suffix='.png').name
+                    plt.savefig(cm_image_path, dpi=300)
                     plt.close(fig_cm)
+
+                    # Add Confusion Matrix to PDF
                     pdf.add_page()
                     pdf.set_font("Arial", 'B', 12)
-                    pdf.cell(0, 10, f"Confusion Matrix for {classifier}", ln=True, align='C')
-                    pdf.image(cm_image.name, x=10, y=20, w=190)
-                    os.unlink(cm_image.name)  # Delete the temporary file
+                    pdf.cell(0, 10, "Confusion Matrix", ln=True, align='C')
+                    pdf.image(cm_image_path, x=30, y=30, w=150)
                     pdf.ln(100)  # Adjust as per image size
+                    os.remove(cm_image_path)  # Delete the temporary file
 
-                    # ROC Curve (if applicable)
+                    # ROC Curve Visualization (if applicable)
                     if roc_auc != "N/A" and y_proba is not None:
                         fig_roc, ax_roc = plt.subplots(figsize=(6, 4))
-                        fpr, tpr, _ = roc_curve(y_test, y_proba)
-                        roc_auc = auc(fpr, tpr)
-                        sns.lineplot(x=fpr, y=tpr, label=f'ROC Curve (AUC = {roc_auc:.4f})', ax=ax_roc)
+                        fpr, tpr, thresholds = roc_curve(y_test, y_proba)
+                        roc_auc_val = auc(fpr, tpr)
+                        sns.lineplot(x=fpr, y=tpr, label=f'ROC Curve (AUC = {roc_auc_val:.4f})', ax=ax_roc)
                         sns.lineplot([0, 1], [0, 1], linestyle='--', color='grey', ax=ax_roc)
                         ax_roc.set_xlabel('False Positive Rate')
                         ax_roc.set_ylabel('True Positive Rate')
                         ax_roc.set_title(f"ROC Curve for {classifier}")
                         ax_roc.legend(loc='lower right')
                         plt.tight_layout()
-                        roc_image = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
-                        plt.savefig(roc_image.name, dpi=300)
+                        roc_image_path = tempfile.NamedTemporaryFile(delete=False, suffix='.png').name
+                        plt.savefig(roc_image_path, dpi=300)
                         plt.close(fig_roc)
+
+                        # Add ROC Curve to PDF
                         pdf.add_page()
                         pdf.set_font("Arial", 'B', 12)
-                        pdf.cell(0, 10, f"ROC Curve for {classifier}", ln=True, align='C')
-                        pdf.image(roc_image.name, x=10, y=20, w=190)
-                        os.unlink(roc_image.name)  # Delete the temporary file
+                        pdf.cell(0, 10, "ROC Curve", ln=True, align='C')
+                        pdf.image(roc_image_path, x=30, y=30, w=150)
                         pdf.ln(100)  # Adjust as per image size
+                        os.remove(roc_image_path)  # Delete the temporary file
 
                     # Finalize and Save the PDF
                     report_path = "fraud_detection_report.pdf"
@@ -759,6 +733,7 @@ if page_selection == "Feedback":
             # Placeholder for feedback storage (e.g., database or email)
             # Implement actual storage mechanism as needed
             st.success("Thank you for your feedback!")
+
 
 
 
