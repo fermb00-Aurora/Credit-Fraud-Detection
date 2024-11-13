@@ -504,207 +504,207 @@ elif page_selection == "Simulator":
 # Load the model
 default_model_filename = 'random_forest.pkl'
 model_path = os.path.join(os.path.dirname(__file__), default_model_filename)
+try:
+    model_sim = joblib.load(model_path)
 
-        try:
-            model_sim = joblib.load(model_path)
+    # Input transaction details
+    st.subheader("🔍 Enter Transaction Details")
+    col1, col2 = st.columns(2)
 
-            # Input transaction details
-            st.subheader("🔍 Enter Transaction Details")
-            col1, col2 = st.columns(2)
+    with col1:
+        V_features = {}
+        for i in range(1, 29):
+            V_features[f'V{i}'] = st.number_input(f'V{i}', value=0.0, format="%.5f", key=f'V{i}')
 
-            with col1:
-                V_features = {}
-                for i in range(1, 29):
-                    V_features[f'V{i}'] = st.number_input(f'V{i}', value=0.0, format="%.5f", key=f'V{i}')
+    with col2:
+        Time = st.number_input('Time (seconds since first transaction)', min_value=0, value=0, step=1, key='Time')
+        Amount = st.number_input('Transaction Amount ($)', min_value=0.0, value=0.0, format="%.2f", key='Amount')
 
-            with col2:
-                Time = st.number_input('Time (seconds since first transaction)', min_value=0, value=0, step=1, key='Time')
-                Amount = st.number_input('Transaction Amount ($)', min_value=0.0, value=0.0, format="%.2f", key='Amount')
+    # Predict button
+    if st.button("Simulate"):
+        input_data = pd.DataFrame({
+            **V_features,
+            'Time': [Time],
+            'Amount': [Amount]
+        })
 
-            # Predict button
-            if st.button("Simulate"):
-                input_data = pd.DataFrame({
-                    **V_features,
-                    'Time': [Time],
-                    'Amount': [Amount]
-                })
+        prediction = model_sim.predict(input_data)[0]
+        prediction_proba = model_sim.predict_proba(input_data)[0][1]
 
-                prediction = model_sim.predict(input_data)[0]
-                prediction_proba = model_sim.predict_proba(input_data)[0][1]
+        if prediction == 1:
+            st.error(f"⚠️ **Fraudulent Transaction Detected!** Probability: {prediction_proba:.2%}")
+        else:
+            st.success(f"✅ **Valid Transaction.** Probability of Fraud: {prediction_proba:.2%}")
+except Exception as e:
+    st.error(f"Error loading model '{default_model_filename}': {e}")
 
-                if prediction == 1:
-                    st.error(f"⚠️ **Fraudulent Transaction Detected!** Probability: {prediction_proba:.2%}")
+
+# Download Report Page
+elif page_selection == "Download Report":
+    st.header("📄 Download Report")
+    st.markdown("""
+    **Generate and Download a Comprehensive PDF Report:**
+    Compile your analysis and model evaluation results into a downloadable PDF report for offline review and sharing with stakeholders.
+    """)
+
+    # Button to generate report
+    if st.button("Generate Report"):
+        with st.spinner("Generating PDF report..."):
+            try:
+                # Retrieve evaluation data from session state
+                eval_data = st.session_state['model_evaluation']
+                required_keys = ['y_test', 'y_pred', 'classifier', 'metrics', 'test_size']
+                if not all(key in eval_data for key in required_keys):
+                    st.error("Please perform a model evaluation before generating the report.")
                 else:
-                    st.success(f"✅ **Valid Transaction.** Probability of Fraud: {prediction_proba:.2%}")
-        except Exception as e:
-            st.error(f"Error loading model '{default_model_filename}': {e}")
+                    y_test = eval_data['y_test']
+                    y_pred = eval_data['y_pred']
+                    classifier = eval_data['classifier']
+                    metrics = eval_data['metrics']
+                    test_size = eval_data['test_size']
+                    roc_auc = eval_data.get('roc_auc', "N/A")
+                    y_proba = eval_data.get('y_proba', None)
 
-    # Download Report Page
-    elif page_selection == "Download Report":
-        st.header("📄 Download Report")
-        st.markdown("""
-        **Generate and Download a Comprehensive PDF Report:**
-        Compile your analysis and model evaluation results into a downloadable PDF report for offline review and sharing with stakeholders.
-        """)
+                    # Initialize PDF
+                    pdf = FPDF()
+                    pdf.set_auto_page_break(auto=True, margin=15)
 
-        # Button to generate report
-        if st.button("Generate Report"):
-            with st.spinner("Generating PDF report..."):
-                try:
-                    # Retrieve evaluation data from session state
-                    eval_data = st.session_state['model_evaluation']
-                    required_keys = ['y_test', 'y_pred', 'classifier', 'metrics', 'test_size']
-                    if not all(key in eval_data for key in required_keys):
-                        st.error("Please perform a model evaluation before generating the report.")
-                    else:
-                        y_test = eval_data['y_test']
-                        y_pred = eval_data['y_pred']
-                        classifier = eval_data['classifier']
-                        metrics = eval_data['metrics']
-                        test_size = eval_data['test_size']
-                        roc_auc = eval_data.get('roc_auc', "N/A")
-                        y_proba = eval_data.get('y_proba', None)
+                    # Title Page
+                    pdf.add_page()
+                    pdf.set_font("Arial", 'B', 16)
+                    pdf.cell(0, 10, "Credit Card Fraud Detection Report", ln=True, align='C')
+                    pdf.ln(10)
 
-                        # Initialize PDF
-                        pdf = FPDF()
-                        pdf.set_auto_page_break(auto=True, margin=15)
+                    # Executive Summary
+                    pdf.set_font("Arial", 'B', 12)
+                    pdf.cell(0, 10, "Executive Summary", ln=True)
+                    pdf.set_font("Arial", '', 12)
+                    exec_summary = (
+                        "This report provides a comprehensive analysis of credit card transactions to identify and detect fraudulent activities. "
+                        "It encompasses data overview, exploratory data analysis, feature importance, model evaluations, and actionable insights to support strategic decision-making and risk management."
+                    )
+                    pdf.multi_cell(0, 10, exec_summary)
+                    pdf.ln(5)
 
-                        # Title Page
-                        pdf.add_page()
-                        pdf.set_font("Arial", 'B', 16)
-                        pdf.cell(0, 10, "Credit Card Fraud Detection Report", ln=True, align='C')
-                        pdf.ln(10)
+                    # Data Overview
+                    pdf.set_font("Arial", 'B', 12)
+                    pdf.cell(0, 10, "Data Overview", ln=True)
+                    pdf.set_font("Arial", '', 12)
+                    data_overview = (
+                        f"- **Total Transactions:** {len(y_test) + (len(df) - len(y_test)):,}\n"
+                        f"- **Fraudulent Transactions:** {y_test.sum():,} ({(y_test.sum() / len(y_test)) * 100:.4f}%)\n"
+                        f"- **Valid Transactions:** {len(y_test) - y_test.sum():,} ({100 - (y_test.sum() / len(y_test)) * 100:.4f}%)\n"
+                        "- **Feature Details:** V1 to V28 are PCA-transformed features ensuring anonymity and reduced dimensionality. 'Time' indicates time since the first transaction, and 'Amount' represents transaction value in USD.\n"
+                        "- **Data Imbalance:** The dataset is highly imbalanced, with fraudulent transactions constituting a small fraction, posing challenges for effective fraud detection."
+                    )
+                    pdf.multi_cell(0, 10, data_overview)
+                    pdf.ln(5)
 
-                        # Executive Summary
-                        pdf.set_font("Arial", 'B', 12)
-                        pdf.cell(0, 10, "Executive Summary", ln=True)
-                        pdf.set_font("Arial", '', 12)
-                        exec_summary = (
-                            "This report provides a comprehensive analysis of credit card transactions to identify and detect fraudulent activities. "
-                            "It encompasses data overview, exploratory data analysis, feature importance, model evaluations, and actionable insights to support strategic decision-making and risk management."
-                        )
-                        pdf.multi_cell(0, 10, exec_summary)
-                        pdf.ln(5)
+                    # Model Evaluation Summary
+                    pdf.set_font("Arial", 'B', 12)
+                    pdf.cell(0, 10, "Model Evaluation Summary", ln=True)
+                    pdf.set_font("Arial", '', 12)
+                    model_evaluation_summary = (
+                        f"- **Model:** {classifier}\n"
+                        f"- **Test Set Size:** {test_size}%\n"
+                        f"- **Total Test Samples:** {len(y_test)}\n"
+                        f"- **Fraudulent Transactions in Test Set:** {y_test.sum()} ({(y_test.sum() / len(y_test)) * 100:.4f}%)\n"
+                        f"- **Valid Transactions in Test Set:** {len(y_test) - y_test.sum()} ({100 - (y_test.sum() / len(y_test)) * 100:.4f}%)\n"
+                        f"- **Accuracy:** {metrics['accuracy']:.4f}\n"
+                        f"- **F1-Score:** {metrics['f1_score']:.4f}\n"
+                        f"- **Matthews Correlation Coefficient (MCC):** {metrics['mcc']:.4f}\n"
+                        f"- **Precision:** {metrics['precision']:.4f}\n"
+                        f"- **Recall:** {metrics['recall']:.4f}\n"
+                        f"- **F2-Score:** {metrics['f2_score']:.4f}\n"
+                        f"- **ROC-AUC:** {roc_auc if roc_auc != 'N/A' else 'N/A'}\n"
+                    )
+                    pdf.multi_cell(0, 10, model_evaluation_summary)
+                    pdf.ln(5)
 
-                        # Data Overview
-                        pdf.set_font("Arial", 'B', 12)
-                        pdf.cell(0, 10, "Data Overview", ln=True)
-                        pdf.set_font("Arial", '', 12)
-                        data_overview = (
-                            f"- **Total Transactions:** {len(y_test) + (len(df) - len(y_test)):,}\n"
-                            f"- **Fraudulent Transactions:** {y_test.sum():,} ({(y_test.sum() / len(y_test)) * 100:.4f}%)\n"
-                            f"- **Valid Transactions:** {len(y_test) - y_test.sum():,} ({100 - (y_test.sum() / len(y_test)) * 100:.4f}%)\n"
-                            "- **Feature Details:** V1 to V28 are PCA-transformed features ensuring anonymity and reduced dimensionality. 'Time' indicates time since the first transaction, and 'Amount' represents transaction value in USD.\n"
-                            "- **Data Imbalance:** The dataset is highly imbalanced, with fraudulent transactions constituting a small fraction, posing challenges for effective fraud detection."
-                        )
-                        pdf.multi_cell(0, 10, data_overview)
-                        pdf.ln(5)
+                    # Confusion Matrix Visualization
+                    # Save the confusion matrix plot as a temporary file
+                    fig_cm, ax_cm = plt.subplots(figsize=(6, 4))
+                    sns.heatmap(confusion_matrix(y_test, y_pred), annot=True, fmt='d', cmap='YlOrBr',
+                                xticklabels=['Valid', 'Fraud'], yticklabels=['Valid', 'Fraud'], ax=ax_cm)
+                    ax_cm.set_xlabel("Predicted")
+                    ax_cm.set_ylabel("Actual")
+                    ax_cm.set_title(f"Confusion Matrix for {classifier}")
+                    plt.tight_layout()
+                    cm_image_path = tempfile.NamedTemporaryFile(delete=False, suffix='.png').name
+                    plt.savefig(cm_image_path, dpi=300)
+                    plt.close(fig_cm)
 
-                        # Model Evaluation Summary
-                        pdf.set_font("Arial", 'B', 12)
-                        pdf.cell(0, 10, "Model Evaluation Summary", ln=True)
-                        pdf.set_font("Arial", '', 12)
-                        model_evaluation_summary = (
-                            f"- **Model:** {classifier}\n"
-                            f"- **Test Set Size:** {test_size}%\n"
-                            f"- **Total Test Samples:** {len(y_test)}\n"
-                            f"- **Fraudulent Transactions in Test Set:** {y_test.sum()} ({(y_test.sum() / len(y_test)) * 100:.4f}%)\n"
-                            f"- **Valid Transactions in Test Set:** {len(y_test) - y_test.sum()} ({100 - (y_test.sum() / len(y_test)) * 100:.4f}%)\n"
-                            f"- **Accuracy:** {metrics['accuracy']:.4f}\n"
-                            f"- **F1-Score:** {metrics['f1_score']:.4f}\n"
-                            f"- **Matthews Correlation Coefficient (MCC):** {metrics['mcc']:.4f}\n"
-                            f"- **Precision:** {metrics['precision']:.4f}\n"
-                            f"- **Recall:** {metrics['recall']:.4f}\n"
-                            f"- **F2-Score:** {metrics['f2_score']:.4f}\n"
-                            f"- **ROC-AUC:** {roc_auc if roc_auc != 'N/A' else 'N/A'}\n"
-                        )
-                        pdf.multi_cell(0, 10, model_evaluation_summary)
-                        pdf.ln(5)
+                    # Add Confusion Matrix to PDF
+                    pdf.add_page()
+                    pdf.set_font("Arial", 'B', 12)
+                    pdf.cell(0, 10, "Confusion Matrix", ln=True, align='C')
+                    pdf.image(cm_image_path, x=30, y=30, w=150)
+                    pdf.ln(100)  # Adjust as per image size
+                    os.remove(cm_image_path)  # Delete the temporary file
 
-                        # Confusion Matrix Visualization
-                        # Save the confusion matrix plot as a temporary file
-                        fig_cm, ax_cm = plt.subplots(figsize=(6, 4))
-                        sns.heatmap(confusion_matrix(y_test, y_pred), annot=True, fmt='d', cmap='YlOrBr',
-                                    xticklabels=['Valid', 'Fraud'], yticklabels=['Valid', 'Fraud'], ax=ax_cm)
-                        ax_cm.set_xlabel("Predicted")
-                        ax_cm.set_ylabel("Actual")
-                        ax_cm.set_title(f"Confusion Matrix for {classifier}")
+                    # ROC Curve Visualization (if applicable)
+                    if roc_auc != "N/A" and y_proba is not None:
+                        fig_roc, ax_roc = plt.subplots(figsize=(6, 4))
+                        fpr, tpr, thresholds = roc_curve(y_test, y_proba)
+                        roc_auc_val = auc(fpr, tpr)
+                        sns.lineplot(x=fpr, y=tpr, label=f'ROC Curve (AUC = {roc_auc_val:.4f})', ax=ax_roc)
+                        sns.lineplot([0, 1], [0, 1], linestyle='--', color='grey', ax=ax_roc)
+                        ax_roc.set_xlabel('False Positive Rate')
+                        ax_roc.set_ylabel('True Positive Rate')
+                        ax_roc.set_title(f"ROC Curve for {classifier}")
+                        ax_roc.legend(loc='lower right')
                         plt.tight_layout()
-                        cm_image_path = tempfile.NamedTemporaryFile(delete=False, suffix='.png').name
-                        plt.savefig(cm_image_path, dpi=300)
-                        plt.close(fig_cm)
+                        roc_image_path = tempfile.NamedTemporaryFile(delete=False, suffix='.png').name
+                        plt.savefig(roc_image_path, dpi=300)
+                        plt.close(fig_roc)
 
-                        # Add Confusion Matrix to PDF
+                        # Add ROC Curve to PDF
                         pdf.add_page()
                         pdf.set_font("Arial", 'B', 12)
-                        pdf.cell(0, 10, "Confusion Matrix", ln=True, align='C')
-                        pdf.image(cm_image_path, x=30, y=30, w=150)
+                        pdf.cell(0, 10, "ROC Curve", ln=True, align='C')
+                        pdf.image(roc_image_path, x=30, y=30, w=150)
                         pdf.ln(100)  # Adjust as per image size
-                        os.remove(cm_image_path)  # Delete the temporary file
+                        os.remove(roc_image_path)  # Delete the temporary file
 
-                        # ROC Curve Visualization (if applicable)
-                        if roc_auc != "N/A" and y_proba is not None:
-                            fig_roc, ax_roc = plt.subplots(figsize=(6, 4))
-                            fpr, tpr, thresholds = roc_curve(y_test, y_proba)
-                            roc_auc_val = auc(fpr, tpr)
-                            sns.lineplot(x=fpr, y=tpr, label=f'ROC Curve (AUC = {roc_auc_val:.4f})', ax=ax_roc)
-                            sns.lineplot([0, 1], [0, 1], linestyle='--', color='grey', ax=ax_roc)
-                            ax_roc.set_xlabel('False Positive Rate')
-                            ax_roc.set_ylabel('True Positive Rate')
-                            ax_roc.set_title(f"ROC Curve for {classifier}")
-                            ax_roc.legend(loc='lower right')
-                            plt.tight_layout()
-                            roc_image_path = tempfile.NamedTemporaryFile(delete=False, suffix='.png').name
-                            plt.savefig(roc_image_path, dpi=300)
-                            plt.close(fig_roc)
+                    # Finalize and Save the PDF
+                    report_path = "fraud_detection_report.pdf"
+                    pdf.output(report_path)
 
-                            # Add ROC Curve to PDF
-                            pdf.add_page()
-                            pdf.set_font("Arial", 'B', 12)
-                            pdf.cell(0, 10, "ROC Curve", ln=True, align='C')
-                            pdf.image(roc_image_path, x=30, y=30, w=150)
-                            pdf.ln(100)  # Adjust as per image size
-                            os.remove(roc_image_path)  # Delete the temporary file
+                    # Provide download button
+                    with open(report_path, "rb") as file:
+                        st.download_button(
+                            label="📥 Download PDF Report",
+                            data=file,
+                            file_name=report_path,
+                            mime="application/pdf"
+                        )
+                    st.success("Report generated and ready for download!")
 
-                        # Finalize and Save the PDF
-                        report_path = "fraud_detection_report.pdf"
-                        pdf.output(report_path)
+                    # Clean up the temporary PDF file
+                    os.remove(report_path)
 
-                        # Provide download button
-                        with open(report_path, "rb") as file:
-                            st.download_button(
-                                label="📥 Download PDF Report",
-                                data=file,
-                                file_name=report_path,
-                                mime="application/pdf"
-                            )
-                        st.success("Report generated and ready for download!")
+            except Exception as e:
+                st.error(f"Error generating report: {e}")
 
-                        # Clean up the temporary PDF file
-                        os.remove(report_path)
+# Feedback Page
+elif page_selection == "Feedback":
+    st.header("💬 Feedback")
+    st.markdown("""
+    **We Value Your Feedback:**
+    Help us improve the Credit Card Fraud Detection Dashboard by providing your valuable feedback and suggestions.
+    """)
 
-                except Exception as e:
-                    st.error(f"Error generating report: {e}")
+    # Feedback input
+    feedback = st.text_area("Provide your feedback here:")
 
-    # Feedback Page
-    elif page_selection == "Feedback":
-        st.header("💬 Feedback")
-        st.markdown("""
-        **We Value Your Feedback:**
-        Help us improve the Credit Card Fraud Detection Dashboard by providing your valuable feedback and suggestions.
-        """)
+    # Submit feedback button
+    if st.button("Submit Feedback"):
+        if feedback.strip() == "":
+            st.warning("Please enter your feedback before submitting.")
+        else:
+            # Placeholder for feedback storage (e.g., database or email)
+            # Implement actual storage mechanism as needed
+            st.success("Thank you for your feedback!")
 
-        # Feedback input
-        feedback = st.text_area("Provide your feedback here:")
-
-        # Submit feedback button
-        if st.button("Submit Feedback"):
-            if feedback.strip() == "":
-                st.warning("Please enter your feedback before submitting.")
-            else:
-                # Placeholder for feedback storage (e.g., database or email)
-                # Implement actual storage mechanism as needed
-                st.success("Thank you for your feedback!")
-
-    else:
-        st.error("Page not found.")
+else:
+    st.error("Page not found.")
