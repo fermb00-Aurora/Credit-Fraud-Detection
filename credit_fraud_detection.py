@@ -481,7 +481,7 @@ elif page_selection == "Model Evaluation":
     """)
 
 # Continue with the next page in your navigation menu
-elif page_selection == "Simulator":
+    elif page_selection == "Simulator":
     st.header("🚀 Simulator")
     st.markdown("""
     **Simulate and Predict Fraudulent Transactions:**
@@ -491,13 +491,13 @@ elif page_selection == "Simulator":
 
 
 
-    # Simulator Page
+# Simulator Page
     elif page_selection == "Simulator":
-        st.header("🚀 Simulator")
-        st.markdown("""
-        **Simulate and Predict Fraudulent Transactions:**
-        Enter transaction details to receive an immediate prediction on whether the transaction is fraudulent.
-        """)
+    st.header("🚀 Simulator")
+    st.markdown("""
+    **Simulate and Predict Fraudulent Transactions:**
+    Enter transaction details to receive an immediate prediction on whether the transaction is fraudulent.
+    """)
 
         # Load the model
         default_model_filename = 'random_forest.pkl'
