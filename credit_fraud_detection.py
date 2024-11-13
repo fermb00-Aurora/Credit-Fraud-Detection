@@ -51,6 +51,8 @@ if page_selection == "Feature Selection":
 
     # Dropdown to select the model for feature importance
     model_choices = {
+        'Logistic Regression': 'logistic_regression.pkl',
+        'k-Nearest Neighbors (kNN)': 'knn.pkl',
         'Random Forest': 'random_forest.pkl',
         'Extra Trees': 'extra_trees.pkl'
     }
@@ -58,8 +60,13 @@ if page_selection == "Feature Selection":
     model_path = os.path.join(os.path.dirname(__file__), model_choices[feature_model])
     model = joblib.load(model_path)
 
-    # Feature importance
-    feature_importances = model.feature_importances_
+    # Check if the selected model supports feature importance
+    if hasattr(model, "feature_importances_"):
+        feature_importances = model.feature_importances_
+    else:
+        st.warning(f"The selected model '{feature_model}' does not support feature importance directly. Using coefficients instead.")
+        feature_importances = np.abs(model.coef_[0]) if hasattr(model, "coef_") else np.zeros(df.drop(columns=['Class']).shape[1])
+
     features = df.drop(columns=['Class']).columns
     importance_df = pd.DataFrame({'Feature': features, 'Importance': feature_importances})
     importance_df = importance_df.sort_values(by='Importance', ascending=False)
@@ -75,7 +82,7 @@ if page_selection == "Feature Selection":
 
     if show_plot:
         fig_imp = px.bar(importance_df.head(num_top_features), x='Importance', y='Feature', orientation='h',
-                         title="Top Features by Importance")
+                         title=f"Top Features by Importance ({feature_model})")
         st.plotly_chart(fig_imp)
 
     if show_selected_features:
@@ -97,7 +104,7 @@ if page_selection == "Model Evaluation":
 
     y_pred = model.predict(X_test)
 
-    # Confusion Matrix
+    # Enhanced Confusion Matrix
     cm = confusion_matrix(y_test, y_pred)
     fig_cm = plt.figure(figsize=(10, 8))
     sns.heatmap(cm, annot=True, fmt='d', cmap='YlOrBr')
@@ -146,6 +153,7 @@ if page_selection == "Feedback":
     feedback = st.text_area("Provide your feedback here:")
     if st.button("Submit Feedback"):
         st.success("Thank you for your feedback!")
+
 
 
 
