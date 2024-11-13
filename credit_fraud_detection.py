@@ -16,22 +16,22 @@ from sklearn.metrics import confusion_matrix, classification_report, matthews_co
 # Suppress warnings
 warnings.filterwarnings("ignore")
 
-# Custom CSS for Dark Sidebar
+# Custom CSS for Light Sidebar
 st.markdown("""
     <style>
     [data-testid="stSidebar"] {
-        background-color: #2b2b2b;
-        color: #e0e0e0;
+        background-color: #f0f0f0;
+        color: #333333;
     }
     [data-testid="stSidebar"] h2 {
-        color: #e0e0e0;
+        color: #333333;
     }
     [data-testid="stSidebar"] label {
-        color: #e0e0e0;
+        color: #333333;
     }
     .css-1v3fvcr:hover {
-        background-color: #444444;
-        color: #ffffff;
+        background-color: #e0e0e0;
+        color: #000000;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -177,6 +177,7 @@ if page_selection == "Feedback":
     feedback = st.text_area("Provide your feedback here:")
     if st.button("Submit Feedback"):
         st.success("Thank you for your feedback!")
+
 
 
 
