@@ -323,34 +323,32 @@ if df is not None:
         except Exception as e:
             st.error(f"Error loading model '{default_model_filename}': {e}")
 
-# Download Report Page
-elif page_selection == "Download Report":
-    st.header("📄 Download Report")
-    st.markdown("""
-    **Generate and Download a Comprehensive PDF Report:**
-    Compile your analysis and model evaluation results into a downloadable PDF report for offline review and sharing with stakeholders.
-    """)
+ # Download Report Page
+    elif page_selection == "Download Report":
+        st.header("📄 Download Report")
+        st.markdown("""
+        **Generate and Download a Comprehensive PDF Report:**
+        Compile your analysis and model evaluation results into a downloadable PDF report for offline review and sharing with stakeholders.
+        """)
 
-    # Check if model evaluation has been performed
-    if 'model_evaluation' not in st.session_state or not st.session_state['model_evaluation']:
-        st.warning("Please perform a model evaluation before generating the report.")
-    else:
         # Button to generate report
         if st.button("Generate Report"):
             with st.spinner("Generating PDF report..."):
                 try:
                     # Retrieve evaluation data from session state
                     eval_data = st.session_state['model_evaluation']
-                    y_test = eval_data['y_test']
-                    y_pred = eval_data['y_pred']
-                    classifier = eval_data['classifier']
-                    metrics = eval_data['metrics']
-                    test_size = eval_data['test_size']
-                    roc_auc = eval_data.get('roc_auc', "N/A")
-                    y_proba = eval_data.get('y_proba', None)
+                    required_keys = ['y_test', 'y_pred', 'classifier', 'metrics', 'test_size']
+                    if not all(key in eval_data for key in required_keys):
+                        st.error("Please perform a model evaluation before generating the report.")
+                    else:
+                        y_test = eval_data['y_test']
+                        y_pred = eval_data['y_pred']
+                        classifier = eval_data['classifier']
+                        metrics = eval_data['metrics']
+                        test_size = eval_data['test_size']
+                        roc_auc = eval_data.get('roc_auc', "N/A")
+                        y_proba = eval_data.get('y_proba', None)
 
-                    # Create a temporary directory to store images
-                    with tempfile.TemporaryDirectory() as tmpdirname:
                         # Initialize PDF
                         pdf = FPDF()
                         pdf.set_auto_page_break(auto=True, margin=15)
@@ -376,13 +374,10 @@ elif page_selection == "Download Report":
                         pdf.set_font("Arial", 'B', 12)
                         pdf.cell(0, 10, "Data Overview", ln=True)
                         pdf.set_font("Arial", '', 12)
-                        total_transactions = len(df)
-                        total_frauds = df['Class'].sum()
-                        fraud_percentage = (total_frauds / total_transactions) * 100
                         data_overview = (
-                            f"- **Total Transactions:** {total_transactions:,}\n"
-                            f"- **Fraudulent Transactions:** {total_frauds:,} ({fraud_percentage:.4f}%)\n"
-                            f"- **Valid Transactions:** {total_transactions - total_frauds:,} ({100 - fraud_percentage:.4f}%)\n"
+                            f"- **Total Transactions:** {len(y_test) + (len(df) - len(y_test)):,}\n"
+                            f"- **Fraudulent Transactions:** {y_test.sum():,} ({(y_test.sum() / len(y_test)) * 100:.4f}%)\n"
+                            f"- **Valid Transactions:** {len(y_test) - y_test.sum():,} ({100 - (y_test.sum() / len(y_test)) * 100:.4f}%)\n"
                             "- **Feature Details:** V1 to V28 are PCA-transformed features ensuring anonymity and reduced dimensionality. 'Time' indicates time since the first transaction, and 'Amount' represents transaction value in USD.\n"
                             "- **Data Imbalance:** The dataset is highly imbalanced, with fraudulent transactions constituting a small fraction, posing challenges for effective fraud detection."
                         )
@@ -401,22 +396,25 @@ elif page_selection == "Download Report":
                             f"- **Valid Transactions in Test Set:** {len(y_test) - y_test.sum()} ({100 - (y_test.sum() / len(y_test)) * 100:.4f}%)\n"
                             f"- **Accuracy:** {metrics['accuracy']:.4f}\n"
                             f"- **F1-Score:** {metrics['f1_score']:.4f}\n"
+                            f"- **Matthews Correlation Coefficient (MCC):** {metrics['mcc']:.4f}\n"
                             f"- **Precision:** {metrics['precision']:.4f}\n"
                             f"- **Recall:** {metrics['recall']:.4f}\n"
+                            f"- **F2-Score:** {metrics['f2_score']:.4f}\n"
                             f"- **ROC-AUC:** {roc_auc if roc_auc != 'N/A' else 'N/A'}\n"
                         )
                         pdf.multi_cell(0, 10, model_evaluation_summary)
                         pdf.ln(5)
 
                         # Confusion Matrix Visualization
-                        fig_cm, ax_cm = plt.subplots(figsize=(4, 3))
+                        # Save the confusion matrix plot as a temporary file
+                        fig_cm, ax_cm = plt.subplots(figsize=(6, 4))
                         sns.heatmap(confusion_matrix(y_test, y_pred), annot=True, fmt='d', cmap='YlOrBr',
                                     xticklabels=['Valid', 'Fraud'], yticklabels=['Valid', 'Fraud'], ax=ax_cm)
                         ax_cm.set_xlabel("Predicted")
                         ax_cm.set_ylabel("Actual")
                         ax_cm.set_title(f"Confusion Matrix for {classifier}")
                         plt.tight_layout()
-                        cm_image_path = os.path.join(tmpdirname, 'confusion_matrix.png')
+                        cm_image_path = tempfile.NamedTemporaryFile(delete=False, suffix='.png').name
                         plt.savefig(cm_image_path, dpi=300)
                         plt.close(fig_cm)
 
@@ -425,20 +423,22 @@ elif page_selection == "Download Report":
                         pdf.set_font("Arial", 'B', 12)
                         pdf.cell(0, 10, "Confusion Matrix", ln=True, align='C')
                         pdf.image(cm_image_path, x=30, y=30, w=150)
+                        pdf.ln(100)  # Adjust as per image size
+                        os.remove(cm_image_path)  # Delete the temporary file
 
                         # ROC Curve Visualization (if applicable)
                         if roc_auc != "N/A" and y_proba is not None:
-                            fig_roc, ax_roc = plt.subplots(figsize=(4, 3))
+                            fig_roc, ax_roc = plt.subplots(figsize=(6, 4))
                             fpr, tpr, thresholds = roc_curve(y_test, y_proba)
                             roc_auc_val = auc(fpr, tpr)
-                            ax_roc.plot(fpr, tpr, label=f'ROC Curve (AUC = {roc_auc_val:.4f})')
-                            ax_roc.plot([0, 1], [0, 1], linestyle='--', color='grey')
+                            sns.lineplot(x=fpr, y=tpr, label=f'ROC Curve (AUC = {roc_auc_val:.4f})', ax=ax_roc)
+                            sns.lineplot([0, 1], [0, 1], linestyle='--', color='grey', ax=ax_roc)
                             ax_roc.set_xlabel('False Positive Rate')
                             ax_roc.set_ylabel('True Positive Rate')
                             ax_roc.set_title(f"ROC Curve for {classifier}")
                             ax_roc.legend(loc='lower right')
                             plt.tight_layout()
-                            roc_image_path = os.path.join(tmpdirname, 'roc_curve.png')
+                            roc_image_path = tempfile.NamedTemporaryFile(delete=False, suffix='.png').name
                             plt.savefig(roc_image_path, dpi=300)
                             plt.close(fig_roc)
 
@@ -447,72 +447,48 @@ elif page_selection == "Download Report":
                             pdf.set_font("Arial", 'B', 12)
                             pdf.cell(0, 10, "ROC Curve", ln=True, align='C')
                             pdf.image(roc_image_path, x=30, y=30, w=150)
-
-                        # Precision-Recall Curve Visualization
-                        if y_proba is not None:
-                            fig_pr, ax_pr = plt.subplots(figsize=(4, 3))
-                            precision, recall, thresholds = precision_recall_curve(y_test, y_proba)
-                            avg_precision = average_precision_score(y_test, y_proba)
-                            ax_pr.plot(recall, precision, label=f'PR Curve (AP = {avg_precision:.4f})')
-                            ax_pr.set_xlabel('Recall')
-                            ax_pr.set_ylabel('Precision')
-                            ax_pr.set_title(f"Precision-Recall Curve for {classifier}")
-                            ax_pr.legend(loc='lower left')
-                            plt.tight_layout()
-                            pr_image_path = os.path.join(tmpdirname, 'pr_curve.png')
-                            plt.savefig(pr_image_path, dpi=300)
-                            plt.close(fig_pr)
-
-                            # Add PR Curve to PDF
-                            pdf.add_page()
-                            pdf.set_font("Arial", 'B', 12)
-                            pdf.cell(0, 10, "Precision-Recall Curve", ln=True, align='C')
-                            pdf.image(pr_image_path, x=30, y=30, w=150)
+                            pdf.ln(100)  # Adjust as per image size
+                            os.remove(roc_image_path)  # Delete the temporary file
 
                         # Finalize and Save the PDF
-                        report_path = os.path.join(tmpdirname, "fraud_detection_report.pdf")
+                        report_path = "fraud_detection_report.pdf"
                         pdf.output(report_path)
 
                         # Provide download button
                         with open(report_path, "rb") as file:
                             st.download_button(
                                 label="📥 Download PDF Report",
-                                data=file.read(),
-                                file_name="fraud_detection_report.pdf",
+                                data=file,
+                                file_name=report_path,
                                 mime="application/pdf"
                             )
                         st.success("Report generated and ready for download!")
+
+                        # Clean up the temporary PDF file
+                        os.remove(report_path)
+
                 except Exception as e:
                     st.error(f"Error generating report: {e}")
 
+    # Feedback Page
+    elif page_selection == "Feedback":
+        st.header("💬 Feedback")
+        st.markdown("""
+        **We Value Your Feedback:**
+        Help us improve the Credit Card Fraud Detection Dashboard by providing your valuable feedback and suggestions.
+        """)
 
-# Feedback Page
-elif page_selection == "Feedback":
-    st.header("💬 Feedback")
-    st.markdown("""
-    **We Value Your Feedback:**
-    Help us improve the Credit Card Fraud Detection Dashboard by providing your valuable feedback and suggestions.
-    """)
+        # Feedback input
+        feedback = st.text_area("Provide your feedback here:")
 
-    # Feedback form
-    st.subheader("📝 Provide Your Feedback")
-    name = st.text_input("Your Name (Optional):")
-    email = st.text_input("Your Email (Optional):")
-    feedback = st.text_area("Your Feedback:")
-    rating = st.slider("Rate Our Dashboard:", min_value=1, max_value=5, value=5)
+        # Submit feedback button
+        if st.button("Submit Feedback"):
+            if feedback.strip() == "":
+                st.warning("Please enter your feedback before submitting.")
+            else:
+                # Placeholder for feedback storage (e.g., database or email)
+                # Implement actual storage mechanism as needed
+                st.success("Thank you for your feedback!")
 
-    # Submit feedback button
-    if st.button("Submit Feedback"):
-        if feedback.strip() == "":
-            st.warning("Please enter your feedback before submitting.")
-        else:
-            # Placeholder for feedback storage
-            # Implement actual storage mechanism as needed (e.g., saving to a database or sending an email)
-            st.success("Thank you for your feedback!")
-            st.balloons()
-            # Optionally, display the feedback summary
-            st.markdown("### Feedback Summary")
-            st.write(f"**Name:** {name if name else 'Anonymous'}")
-            st.write(f"**Email:** {email if email else 'Not provided'}")
-            st.write(f"**Rating:** {rating} ⭐")
-            st.write(f"**Feedback:** {feedback}")
+    else:
+        st.error("Page not found.")
