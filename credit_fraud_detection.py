@@ -24,7 +24,9 @@ from sklearn.metrics import (
     average_precision_score,
     precision_score,
     recall_score,
-    fbeta_score
+    fbeta_score,
+    cohen_kappa_score,
+    roc_auc_score
 )
 import tempfile
 
@@ -59,9 +61,6 @@ def load_data():
         # Get the directory of the current script
         script_dir = os.path.dirname(os.path.abspath(__file__))
         data_path = os.path.join(script_dir, 'creditdata.csv')
-        if not os.path.exists(data_path):
-            st.error(f"The file 'creditdata.csv' was not found in the directory: {script_dir}")
-            return None
         df = pd.read_csv(data_path)
         return df
     except Exception as e:
@@ -74,9 +73,6 @@ def load_model(model_filename):
     try:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         model_path = os.path.join(script_dir, model_filename)
-        if not os.path.exists(model_path):
-            st.error(f"Model file '{model_filename}' not found in the directory: {script_dir}")
-            return None
         model = joblib.load(model_path)
         return model
     except Exception as e:
@@ -263,12 +259,30 @@ if df is not None:
         )
         st.plotly_chart(fig_fraud_rate, use_container_width=True)
 
+        # Heatmap of Fraud Rate by Hour and Amount Bracket
+        st.markdown("### 🔥 Fraud Rate by Hour and Transaction Amount Bracket")
+        # Create amount brackets
+        df['Amount_Bracket'] = pd.qcut(df['Amount'], q=4, labels=["Low", "Medium", "High", "Very High"])
+        fraud_rate_heatmap = df.groupby(['Hour', 'Amount_Bracket'])['Class'].mean().reset_index()
+        pivot_heatmap = fraud_rate_heatmap.pivot(index='Hour', columns='Amount_Bracket', values='Class')
+        fig_heatmap = px.imshow(
+            pivot_heatmap,
+            labels=dict(x="Amount Bracket", y="Hour of Day", color="Fraud Rate"),
+            x=pivot_heatmap.columns,
+            y=pivot_heatmap.index,
+            color_continuous_scale='Reds',
+            title="Fraud Rate by Hour and Transaction Amount Bracket",
+            aspect="auto"
+        )
+        st.plotly_chart(fig_heatmap, use_container_width=True)
+
         st.markdown("""
         **In-Depth Analysis:**
         - **Temporal Patterns:** The distribution of transactions across different hours indicates peak periods of activity, which can be critical for monitoring and deploying fraud detection mechanisms during high-risk times.
         - **Transaction Density:** The density plots reveal the concentration of transaction amounts, providing insights into typical spending behaviors and potential outliers.
         - **Average Transaction Amount:** Understanding average transaction amounts per hour can help identify unusual spikes that may signify fraudulent activities.
         - **Fraud Rate Analysis:** Monitoring fraud rates across different hours helps in allocating resources effectively and enhancing surveillance during high-risk periods.
+        - **Fraud Rate by Amount Bracket:** Analyzing fraud rates across transaction amount brackets can identify high-risk spending behaviors, enabling targeted fraud prevention strategies.
         """)
 
     # Feature Importance Page
@@ -352,6 +366,12 @@ if df is not None:
                 - **Low-Impact Features:** Identifying features with minimal influence can streamline data preprocessing and reduce computational overhead without compromising model performance.
                 - **Model Selection:** Different models may prioritize different features, offering diverse perspectives on what drives fraudulent activities.
                 """)
+
+                # Optional: Display Feature Importance Table
+                st.subheader("📄 Feature Importance Table")
+                st.dataframe(importance_df.style.background_gradient(cmap='YlOrRd'))
+            else:
+                st.error("Unable to extract feature importances for the selected model.")
         else:
             st.error("Failed to load the selected model.")
 
@@ -363,7 +383,7 @@ if df is not None:
         This section provides an in-depth evaluation of various machine learning models used for fraud detection. By analyzing key performance metrics and interactive visualizations, executives can understand each model's effectiveness and suitability for deployment.
         """)
 
-        # Dictionary of all available models for evaluation (excluding SVM)
+        # Dictionary of all available models for evaluation
         all_models = {
             'Logistic Regression': 'logistic_regression.pkl',
             'Random Forest': 'random_forest.pkl',
@@ -405,7 +425,9 @@ if df is not None:
                 'mcc': matthews_corrcoef(y_test, y_pred),
                 'precision': precision_score(y_test, y_pred),
                 'recall': recall_score(y_test, y_pred),
-                'f2_score': fbeta_score(y_test, y_pred, beta=2)
+                'f2_score': fbeta_score(y_test, y_pred, beta=2),
+                'cohen_kappa': cohen_kappa_score(y_test, y_pred),
+                'roc_auc': roc_auc_score(y_test, model.predict_proba(X_test)[:,1]) if hasattr(model, "predict_proba") else "N/A"
             }
             st.session_state['model_evaluation']['test_size'] = test_size  # Store test_size
 
@@ -421,13 +443,12 @@ if df is not None:
                 y_proba = (y_proba - y_proba.min()) / (y_proba.max() - y_proba.min())
                 roc_available = True
 
-            if roc_available:
-                st.session_state['model_evaluation']['y_proba'] = y_proba
+            if roc_available and 'roc_auc' not in st.session_state['model_evaluation']:
                 fpr, tpr, thresholds = roc_curve(y_test, y_proba)
                 roc_auc = auc(fpr, tpr)
                 st.session_state['model_evaluation']['roc_auc'] = roc_auc
             else:
-                st.session_state['model_evaluation']['roc_auc'] = "N/A"
+                roc_auc = st.session_state['model_evaluation'].get('roc_auc', "N/A")
 
             # Confusion Matrix
             st.subheader("🔢 Confusion Matrix")
@@ -453,18 +474,27 @@ if df is not None:
 
             # Performance Metrics
             metrics = st.session_state['model_evaluation']['metrics']
-            col1, col2, col3 = st.columns(3)
+            st.subheader("📈 Performance Metrics")
+            col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
             col1.metric("🔹 Accuracy", f"{metrics['accuracy']:.4f}")
             col2.metric("🔹 F1-Score", f"{metrics['f1_score']:.4f}")
-            col3.metric("🔹 Matthews Corr. Coef.", f"{metrics['mcc']:.4f}")
-            col4, col5 = st.columns(2)
+            col3.metric("🔹 MCC", f"{metrics['mcc']:.4f}")
             col4.metric("🔹 Precision", f"{metrics['precision']:.4f}")
             col5.metric("🔹 Recall", f"{metrics['recall']:.4f}")
-            st.metric("🔹 F2-Score", f"{metrics['f2_score']:.4f}")
+            col6.metric("🔹 F2-Score", f"{metrics['f2_score']:.4f}")
+            col7.metric("🔹 Cohen's Kappa", f"{metrics['cohen_kappa']:.4f}")
+
+            if roc_available and metrics['roc_auc'] != "N/A":
+                col8, col9 = st.columns(2)
+                col8.metric("🔹 ROC-AUC", f"{metrics['roc_auc']:.4f}")
+                col9.metric("🔹 PR-AUC", f"{average_precision_score(y_test, y_proba):.4f}")
+            else:
+                st.metric("🔹 ROC-AUC", "N/A")
+                st.metric("🔹 PR-AUC", "N/A")
 
             # ROC Curve - Only for models that support it
             st.subheader("📈 Receiver Operating Characteristic (ROC) Curve")
-            if roc_available:
+            if roc_available and metrics['roc_auc'] != "N/A":
                 fpr, tpr, thresholds = roc_curve(y_test, y_proba)
                 roc_auc = auc(fpr, tpr)
                 st.session_state['model_evaluation']['roc_auc'] = roc_auc
@@ -509,29 +539,55 @@ if df is not None:
             else:
                 st.info("Precision-Recall Curve is not available for the selected model.")
 
-            # Additional Evaluation Metrics
-            st.subheader("📈 Additional Evaluation Metrics")
-            st.markdown("""
-            **Precision:** Measures the proportion of positive identifications that were actually correct. High precision indicates a low false positive rate.
+            # Additional Creative Plots
+            st.subheader("🎨 Additional Insights")
 
-            **Recall (Sensitivity):** Measures the proportion of actual positives that were identified correctly. High recall indicates a low false negative rate.
+            # Lift Curve
+            st.markdown("### 📈 Lift Curve")
+            df_predictions = pd.DataFrame({
+                'Actual': y_test,
+                'Probability': y_proba
+            })
+            df_predictions = df_predictions.sort_values(by='Probability', ascending=False)
+            df_predictions['Cumulative'] = df_predictions['Actual'].cumsum()
+            df_predictions['Cumulative_Percent'] = df_predictions['Cumulative'] / df_predictions['Actual'].sum()
+            fig_lift = px.line(
+                df_predictions,
+                x=np.arange(1, len(df_predictions) + 1),
+                y='Cumulative_Percent',
+                title='Lift Curve',
+                labels={'x': 'Number of Samples', 'Cumulative_Percent': 'Cumulative Percentage of Frauds'},
+                width=700, height=500
+            )
+            fig_lift.add_shape(
+                type='line',
+                line=dict(dash='dash'),
+                x0=0, x1=len(df_predictions), y0=0, y1=1
+            )
+            st.plotly_chart(fig_lift, use_container_width=True)
 
-            **F2-Score:** Places more emphasis on recall than precision, useful when false negatives are more critical than false positives.
-            """)
-
-            st.markdown("""
-            **Comprehensive Metrics:**
-            - **Accuracy:** Proportion of correct predictions.
-            - **F1-Score:** Harmonic mean of precision and recall.
-            - **Matthews Correlation Coefficient (MCC):** Balanced measure even if classes are of very different sizes.
-            - **Precision:** Proportion of positive identifications that were actually correct.
-            - **Recall:** Proportion of actual positives that were identified correctly.
-            - **F2-Score:** Focuses more on recall than precision.
-            """)
+            # Gain Chart
+            st.markdown("### 📈 Gain Chart")
+            df_predictions['Gain'] = df_predictions['Cumulative'] / df_predictions['Actual'].sum()
+            fig_gain = px.line(
+                df_predictions,
+                x=np.arange(1, len(df_predictions) + 1),
+                y='Gain',
+                title='Gain Chart',
+                labels={'x': 'Number of Samples', 'Gain': 'Gain'},
+                width=700, height=500
+            )
+            fig_gain.add_shape(
+                type='line',
+                line=dict(dash='dash'),
+                x0=0, x1=len(df_predictions), y0=0, y1=1
+            )
+            st.plotly_chart(fig_gain, use_container_width=True)
 
             # Personalized and Insightful Summary
             st.subheader("📄 Personalized Model Evaluation Summary")
-            roc_auc_text = f"{roc_auc:.4f}" if roc_available else "N/A"
+            roc_auc_text = f"{roc_auc:.4f}" if roc_available and metrics['roc_auc'] != "N/A" else "N/A"
+            pr_auc = average_precision_score(y_test, y_proba) if roc_available else "N/A"
             test_size = st.session_state['model_evaluation'].get('test_size', "N/A")
             st.markdown(f"""
             **Model:** {classifier}  
@@ -539,15 +595,17 @@ if df is not None:
             **Total Test Samples:** {len(y_test)}  
             **Fraudulent Transactions in Test Set:** {y_test.sum()} ({(y_test.sum() / len(y_test)) * 100:.4f}%)  
             **Valid Transactions in Test Set:** {len(y_test) - y_test.sum()} ({100 - (y_test.sum() / len(y_test)) * 100:.4f}%)  
-
+    
             **Performance Overview:**
             - **Accuracy:** {metrics['accuracy']:.4f}
             - **F1-Score:** {metrics['f1_score']:.4f}
-            - **Matthews Corr. Coef.:** {metrics['mcc']:.4f}
+            - **Matthews Correlation Coefficient (MCC):** {metrics['mcc']:.4f}
             - **Precision:** {metrics['precision']:.4f}
             - **Recall:** {metrics['recall']:.4f}
             - **F2-Score:** {metrics['f2_score']:.4f}
+            - **Cohen's Kappa:** {metrics['cohen_kappa']:.4f}
             - **ROC-AUC:** {roc_auc_text}
+            - **PR-AUC:** {pr_auc if pr_auc != "N/A" else "N/A"}
             """)
 
             st.markdown("""
@@ -557,7 +615,9 @@ if df is not None:
             - The **Matthews Correlation Coefficient (MCC)** of {model_mcc:.4f} suggests a strong correlation between the observed and predicted classifications.
             - **Precision** and **Recall** scores of {model_precision:.4f} and {model_recall:.4f} respectively highlight the model's capability to minimize false positives and false negatives.
             - An **F2-Score** of {model_f2:.4f} emphasizes the model's focus on recall, ensuring that most fraudulent transactions are detected.
+            - The **Cohen's Kappa** of {model_cohen_kappa:.4f} measures the agreement between predicted and actual classes, accounting for chance agreements.
             - The **ROC-AUC** of {model_roc_auc} demonstrates the model's ability to distinguish between fraudulent and valid transactions.
+            - The **PR-AUC** of {model_pr_auc} indicates the model's performance in precision-recall trade-offs, especially useful for imbalanced datasets.
             """.format(
                 model_accuracy=metrics['accuracy'] * 100,
                 correct_preds=int(metrics['accuracy'] * len(y_test)),
@@ -567,7 +627,9 @@ if df is not None:
                 model_precision=metrics['precision'],
                 model_recall=metrics['recall'],
                 model_f2=metrics['f2_score'],
-                model_roc_auc=roc_auc_text
+                model_cohen_kappa=metrics['cohen_kappa'],
+                model_roc_auc=roc_auc_text,
+                model_pr_auc=pr_auc if pr_auc != "N/A" else "N/A"
             ))
 
     # Simulator Page
@@ -691,8 +753,12 @@ if df is not None:
                             f"- **Precision:** {metrics['precision']:.4f}\n"
                             f"- **Recall:** {metrics['recall']:.4f}\n"
                             f"- **F2-Score:** {metrics['f2_score']:.4f}\n"
+                            f"- **Cohen's Kappa:** {metrics['cohen_kappa']:.4f}\n"
                             f"- **ROC-AUC:** {roc_auc if roc_auc != 'N/A' else 'N/A'}\n"
                         )
+                        # Add PR-AUC if available
+                        pr_auc = average_precision_score(y_test, y_proba) if y_proba is not None else "N/A"
+                        model_evaluation_summary += f"- **PR-AUC:** {pr_auc if pr_auc != 'N/A' else 'N/A'}\n"
                         pdf.multi_cell(0, 10, model_evaluation_summary)
                         pdf.ln(5)
 
@@ -714,7 +780,6 @@ if df is not None:
                         pdf.set_font("Arial", 'B', 12)
                         pdf.cell(0, 10, "Confusion Matrix", ln=True, align='C')
                         pdf.image(cm_image_path, x=30, y=30, w=150)
-                        pdf.ln(100)  # Adjust as per image size
                         os.remove(cm_image_path)  # Delete the temporary file
 
                         # ROC Curve Visualization (if applicable)
@@ -738,8 +803,28 @@ if df is not None:
                             pdf.set_font("Arial", 'B', 12)
                             pdf.cell(0, 10, "ROC Curve", ln=True, align='C')
                             pdf.image(roc_image_path, x=30, y=30, w=150)
-                            pdf.ln(100)  # Adjust as per image size
                             os.remove(roc_image_path)  # Delete the temporary file
+
+                        # Precision-Recall Curve Visualization
+                        if pr_auc != "N/A" and y_proba is not None:
+                            fig_pr, ax_pr = plt.subplots(figsize=(6, 4))
+                            precision, recall, thresholds = precision_recall_curve(y_test, y_proba)
+                            sns.lineplot(x=recall, y=precision, label=f'PR Curve (AP = {pr_auc:.4f})', ax=ax_pr)
+                            ax_pr.set_xlabel('Recall')
+                            ax_pr.set_ylabel('Precision')
+                            ax_pr.set_title(f"Precision-Recall Curve for {classifier}")
+                            ax_pr.legend(loc='lower left')
+                            plt.tight_layout()
+                            pr_image_path = tempfile.NamedTemporaryFile(delete=False, suffix='.png').name
+                            plt.savefig(pr_image_path, dpi=300)
+                            plt.close(fig_pr)
+
+                            # Add PR Curve to PDF
+                            pdf.add_page()
+                            pdf.set_font("Arial", 'B', 12)
+                            pdf.cell(0, 10, "Precision-Recall Curve", ln=True, align='C')
+                            pdf.image(pr_image_path, x=30, y=30, w=150)
+                            os.remove(pr_image_path)  # Delete the temporary file
 
                         # Finalize and Save the PDF
                         report_path = "fraud_detection_report.pdf"
@@ -783,4 +868,3 @@ if df is not None:
 
     else:
         st.error("Page not found.")
-
