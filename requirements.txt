@@ -1,8 +1,9 @@
 pandas
 matplotlib
 seaborn
+plotly
 numpy
 streamlit
 joblib
-scikit-learn
 fpdf
+scikit-learn
