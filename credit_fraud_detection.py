@@ -379,7 +379,7 @@ if page_selection == "Model Evaluation":
 
     y_pred = model.predict(X_test)
 
-    # Confusion Matrix
+    # Enhanced Confusion Matrix
     cm = confusion_matrix(y_test, y_pred)
     fig_cm = plt.figure(figsize=(8, 6))
     sns.heatmap(cm, annot=True, fmt='d', cmap='YlOrBr')
@@ -387,20 +387,6 @@ if page_selection == "Model Evaluation":
     plt.xlabel("Predicted")
     plt.ylabel("Actual")
     st.pyplot(fig_cm)
-
-    # Enhanced Classification Report
-    st.subheader("📋 Enhanced Classification Report")
-    report_df = pd.DataFrame(classification_report(y_test, y_pred, output_dict=True)).transpose()
-    st.dataframe(report_df.style.background_gradient(cmap='coolwarm'))
-
-    # Additional Metrics
-    f1 = f1_score(y_test, y_pred)
-    accuracy = accuracy_score(y_test, y_pred)
-    mcc = matthews_corrcoef(y_test, y_pred)
-
-    st.write(f"**F1-Score**: {f1:.3f}")
-    st.write(f"**Accuracy**: {accuracy:.3f}")
-    st.write(f"**Matthews Correlation Coefficient (MCC)**: {mcc:.3f}")
 
     # Simulator Page
     elif page_selection == "Simulator":
