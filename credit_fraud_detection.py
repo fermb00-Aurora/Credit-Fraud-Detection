@@ -388,11 +388,32 @@ if page_selection == "Model Evaluation":
             'f2_score': fbeta_score(y_test, y_pred, beta=2)
         }
 
+        # Determine if ROC Curve is available and store y_proba if applicable
+        roc_available = False
+        y_proba = None
+        if hasattr(model, "predict_proba"):
+            y_proba = model.predict_proba(X_test)[:, 1]
+            roc_available = True
+        elif hasattr(model, "decision_function"):
+            y_proba = model.decision_function(X_test)
+            # Normalize decision function scores
+            y_proba = (y_proba - y_proba.min()) / (y_proba.max() - y_proba.min())
+            roc_available = True
+
+        if roc_available:
+            st.session_state['model_evaluation']['y_proba'] = y_proba
+            fpr, tpr, thresholds = roc_curve(y_test, y_proba)
+            roc_auc = auc(fpr, tpr)
+            st.session_state['model_evaluation']['roc_auc'] = roc_auc
+        else:
+            st.session_state['model_evaluation']['roc_auc'] = "N/A"
+
         # Confusion Matrix
         st.subheader("🔢 Confusion Matrix")
         cm = confusion_matrix(y_test, y_pred)
         fig_cm, ax_cm = plt.subplots(figsize=(6, 4))
-        sns.heatmap(cm, annot=True, fmt='d', cmap='YlOrBr', xticklabels=['Valid', 'Fraud'], yticklabels=['Valid', 'Fraud'], ax=ax_cm)
+        sns.heatmap(cm, annot=True, fmt='d', cmap='YlOrBr',
+                    xticklabels=['Valid', 'Fraud'], yticklabels=['Valid', 'Fraud'], ax=ax_cm)
         ax_cm.set_xlabel("Predicted")
         ax_cm.set_ylabel("Actual")
         ax_cm.set_title(f"Confusion Matrix for {classifier}")
@@ -418,20 +439,9 @@ if page_selection == "Model Evaluation":
 
         # ROC Curve - Only for models that support it
         st.subheader("📈 Receiver Operating Characteristic (ROC) Curve")
-        roc_available = False
-        if hasattr(model, "predict_proba"):
-            y_proba = model.predict_proba(X_test)[:, 1]
-            roc_available = True
-        elif hasattr(model, "decision_function"):
-            y_proba = model.decision_function(X_test)
-            # Normalize decision function scores
-            y_proba = (y_proba - y_proba.min()) / (y_proba.max() - y_proba.min())
-            roc_available = True
-
         if roc_available:
             fpr, tpr, thresholds = roc_curve(y_test, y_proba)
             roc_auc = auc(fpr, tpr)
-            st.session_state['model_evaluation']['roc_auc'] = roc_auc
 
             fig_roc = px.area(
                 x=fpr, y=tpr,
@@ -508,7 +518,7 @@ if page_selection == "Model Evaluation":
             model_precision=metrics['precision'],
             model_recall=metrics['recall'],
             model_f2=metrics['f2_score'],
-            model_roc_auc=metrics['roc_auc'] if roc_available else "N/A"
+            model_roc_auc=roc_auc_text
         ))
 
     else:
@@ -581,6 +591,7 @@ if page_selection == "Download Report":
                     classifier = st.session_state['model_evaluation']['classifier']
                     metrics = st.session_state['model_evaluation']['metrics']
                     roc_auc = st.session_state['model_evaluation'].get('roc_auc', "N/A")
+                    y_proba = st.session_state['model_evaluation'].get('y_proba', None)
 
                     # Initialize PDF
                     pdf = FPDF()
@@ -688,14 +699,8 @@ if page_selection == "Download Report":
                     pdf.ln(100)  # Adjust as per image size
 
                     # ROC Curve (if applicable)
-                    if roc_auc != "N/A":
+                    if roc_auc != "N/A" and y_proba is not None:
                         fig_roc, ax_roc = plt.subplots(figsize=(6, 4))
-                        if hasattr(model, "predict_proba"):
-                            y_proba = model.predict_proba(X_test)[:, 1]
-                        else:
-                            y_proba = model.decision_function(X_test)
-                            y_proba = (y_proba - y_proba.min()) / (y_proba.max() - y_proba.min())
-
                         fpr, tpr, _ = roc_curve(y_test, y_proba)
                         roc_auc = auc(fpr, tpr)
                         sns.lineplot(x=fpr, y=tpr, label=f'ROC Curve (AUC = {roc_auc:.4f})', ax=ax_roc)
@@ -754,6 +759,7 @@ if page_selection == "Feedback":
             # Placeholder for feedback storage (e.g., database or email)
             # Implement actual storage mechanism as needed
             st.success("Thank you for your feedback!")
+
 
 
 
