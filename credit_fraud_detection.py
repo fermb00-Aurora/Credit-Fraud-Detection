@@ -140,8 +140,10 @@ if page_selection == "Exploratory Data Analysis":
 
     # Transaction Amount Over Time
     st.subheader("⏰ Transaction Amount Over Time")
+    # Sample the data for performance
+    sampled_df = df.sample(n=5000, random_state=42) if len(df) > 5000 else df
     fig_time = px.scatter(
-        df.sample(n=5000, random_state=42),  # Sampling for performance
+        sampled_df,
         x='Time',
         y='Amount',
         color='Class',
@@ -193,11 +195,52 @@ if page_selection == "Exploratory Data Analysis":
     )
     st.plotly_chart(fig_hour, use_container_width=True)
 
+    # Additional Insightful Visualizations for Business
+    st.subheader("📊 Additional Business Insights")
+
+    # Average Transaction Amount per Hour
+    st.markdown("### 📈 Average Transaction Amount per Hour")
+    avg_amount_hour = df.groupby(['Hour', 'Class'])['Amount'].mean().reset_index()
+    fig_avg_amount = px.line(
+        avg_amount_hour,
+        x='Hour',
+        y='Amount',
+        color='Class',
+        labels={
+            'Hour': 'Hour of Day',
+            'Amount': 'Average Transaction Amount ($)',
+            'Class': 'Transaction Class'
+        },
+        title="Average Transaction Amount per Hour",
+        color_discrete_map={'0': 'green', '1': 'red'},
+        markers=True
+    )
+    st.plotly_chart(fig_avg_amount, use_container_width=True)
+
+    # Fraud Rate by Hour
+    st.markdown("### 📉 Fraud Rate by Hour")
+    fraud_rate_hour = df.groupby('Hour')['Class'].mean().reset_index()
+    fig_fraud_rate = px.bar(
+        fraud_rate_hour,
+        x='Hour',
+        y='Class',
+        labels={
+            'Hour': 'Hour of Day',
+            'Class': 'Fraud Rate',
+        },
+        title="Fraud Rate by Hour of Day",
+        color='Class',
+        color_continuous_scale='Reds',
+        range_y=[0, fraud_rate_hour['Class'].max() + 0.01]
+    )
+    st.plotly_chart(fig_fraud_rate, use_container_width=True)
+
     st.markdown("""
     **In-Depth Analysis:**
     - **Temporal Patterns:** The distribution of transactions across different hours indicates peak periods of activity, which can be critical for monitoring and deploying fraud detection mechanisms during high-risk times.
     - **Transaction Density:** The density plots reveal the concentration of transaction amounts, providing insights into typical spending behaviors and potential outliers.
-    - **Feature Relationships:** The correlation heatmap highlights interdependencies between features, informing feature selection and engineering processes for model training.
+    - **Average Transaction Amount:** Understanding average transaction amounts per hour can help identify unusual spikes that may signify fraudulent activities.
+    - **Fraud Rate Analysis:** Monitoring fraud rates across different hours helps in allocating resources effectively and enhancing surveillance during high-risk periods.
     """)
 
 # Feature Importance Page
@@ -244,28 +287,31 @@ if page_selection == "Feature Importance":
                 'Importance': importances
             }).sort_values(by='Importance', ascending=False)
 
-            # Display Top 10 Important Features
-            st.subheader("📌 Top 10 Most Important Features")
+            # Slider for selecting number of top features to display
+            top_n = st.slider("Select Number of Top Features to Display:", min_value=5, max_value=20, value=10, step=1)
+
+            # Display Top N Important Features
+            st.subheader(f"📌 Top {top_n} Most Important Features")
             fig_imp_top = px.bar(
-                importance_df.head(10),
+                importance_df.head(top_n),
                 x='Importance',
                 y='Feature',
                 orientation='h',
-                title=f"Top 10 Feature Importances for {selected_model}",
+                title=f"Top {top_n} Feature Importances for {selected_model}",
                 labels={'Importance': 'Importance Score', 'Feature': 'Feature'},
                 color='Importance',
                 color_continuous_scale='YlOrRd'
             )
             st.plotly_chart(fig_imp_top, use_container_width=True)
 
-            # Display Top 10 Least Important Features
-            st.subheader("📉 Top 10 Least Important Features")
+            # Display Top N Least Important Features
+            st.subheader(f"📉 Top {top_n} Least Important Features")
             fig_imp_bottom = px.bar(
-                importance_df.tail(10),
+                importance_df.tail(top_n),
                 x='Importance',
                 y='Feature',
                 orientation='h',
-                title=f"Top 10 Least Important Features for {selected_model}",
+                title=f"Top {top_n} Least Important Features for {selected_model}",
                 labels={'Importance': 'Importance Score', 'Feature': 'Feature'},
                 color='Importance',
                 color_continuous_scale='Blues'
@@ -311,7 +357,7 @@ if page_selection == "Model Evaluation":
         X = df.drop(columns=['Class'])
         y = df['Class']
 
-        # Split the data
+        # Split the data with stratification to maintain class distribution
         X_train, X_test, y_train, y_test = train_test_split(
             X, y,
             test_size=test_size_fraction,
@@ -336,7 +382,8 @@ if page_selection == "Model Evaluation":
         st.subheader("📋 Classification Report")
         report = classification_report(y_test, y_pred, output_dict=True)
         report_df = pd.DataFrame(report).transpose()
-        st.dataframe(report_df.style.background_gradient(cmap='coolwarm'))
+        # Enhance the classification report with better formatting
+        st.dataframe(report_df.style.applymap(lambda x: 'background-color: #FDEBD0' if isinstance(x, float) and x < 0.5 else '').background_gradient(cmap='coolwarm'))
 
         # Performance Metrics
         f1 = f1_score(y_test, y_pred)
@@ -348,32 +395,35 @@ if page_selection == "Model Evaluation":
         col2.metric("🔹 Accuracy", f"{accuracy:.4f}")
         col3.metric("🔹 Matthews Corr. Coef.", f"{mcc:.4f}")
 
-        # ROC Curve
+        # ROC Curve - Only for models that support it
         st.subheader("📈 Receiver Operating Characteristic (ROC) Curve")
-        if hasattr(model, "predict_proba"):
-            y_proba = model.predict_proba(X_test)[:, 1]
+        if hasattr(model, "predict_proba") or hasattr(model, "decision_function"):
+            if hasattr(model, "predict_proba"):
+                y_proba = model.predict_proba(X_test)[:, 1]
+            else:
+                y_proba = model.decision_function(X_test)
+                # Normalize decision function scores
+                y_proba = (y_proba - y_proba.min()) / (y_proba.max() - y_proba.min())
+
+            fpr, tpr, thresholds = roc_curve(y_test, y_proba)
+            roc_auc = auc(fpr, tpr)
+
+            fig_roc = px.area(
+                x=fpr, y=tpr,
+                title=f"ROC Curve (AUC = {roc_auc:.4f}) for {classifier}",
+                labels={'x': 'False Positive Rate', 'y': 'True Positive Rate'},
+                width=700, height=500
+            )
+            fig_roc.add_shape(
+                type='line',
+                line=dict(dash='dash'),
+                x0=0, x1=1, y0=0, y1=1
+            )
+            fig_roc.update_yaxes(scale=1.05)
+            fig_roc.update_xaxes(scale=1.05)
+            st.plotly_chart(fig_roc, use_container_width=True)
         else:
-            y_proba = model.decision_function(X_test)
-            # Normalize decision function scores
-            y_proba = (y_proba - y_proba.min()) / (y_proba.max() - y_proba.min())
-
-        fpr, tpr, thresholds = roc_curve(y_test, y_proba)
-        roc_auc = auc(fpr, tpr)
-
-        fig_roc = px.area(
-            x=fpr, y=tpr,
-            title=f"ROC Curve (AUC = {roc_auc:.4f}) for {classifier}",
-            labels={'x': 'False Positive Rate', 'y': 'True Positive Rate'},
-            width=700, height=500
-        )
-        fig_roc.add_shape(
-            type='line',
-            line=dict(dash='dash'),
-            x0=0, x1=1, y0=0, y1=1
-        )
-        fig_roc.update_yaxes(scale=1.05)
-        fig_roc.update_xaxes(scale=1.05)
-        st.plotly_chart(fig_roc, use_container_width=True)
+            st.info("ROC Curve is not available for the selected model.")
 
         st.markdown("""
         **Comprehensive Metrics:**
@@ -383,6 +433,21 @@ if page_selection == "Model Evaluation":
         - **ROC-AUC:** Evaluates the trade-off between true positive rate and false positive rate, with higher values indicating better model performance.
         """)
 
+        # Personalized and Cool Report Enhancements
+        st.subheader("📄 Personalized Model Evaluation Summary")
+        st.markdown(f"""
+        **Model:** {classifier}  
+        **Test Set Size:** {test_size}%  
+        **Total Test Samples:** {len(y_test)}  
+        **Fraudulent Transactions in Test Set:** {y_test.sum()} ({(y_test.sum() / len(y_test)) * 100:.4f}%)  
+        **Valid Transactions in Test Set:** {len(y_test) - y_test.sum()} ({100 - (y_test.sum() / len(y_test)) * 100:.4f}%)  
+        
+        **Performance Overview:**
+        - **Accuracy:** {accuracy:.4f}
+        - **F1-Score:** {f1:.4f}
+        - **Matthews Corr. Coef.:** {mcc:.4f}
+        - **ROC-AUC:** {roc_auc:.4f} (if applicable)
+        """)
     else:
         st.error("Failed to load the selected model.")
 
@@ -482,7 +547,9 @@ if page_selection == "Download Report":
                 pdf.set_font("Arial", '', 12)
                 eda_summary = (
                     "- **Feature Correlation:** High inter-correlation among V1 to V28 indicates potential multicollinearity. The 'Amount' feature shows moderate correlation with other features.\n"
-                    "- **Transaction Patterns:** Peak transaction times and distribution of transaction amounts provide insights into typical and anomalous behaviors."
+                    "- **Transaction Patterns:** Peak transaction times and distribution of transaction amounts provide insights into typical and anomalous behaviors.\n"
+                    "- **Average Transaction Amount:** Understanding average transaction amounts per hour can help identify unusual spikes that may signify fraudulent activities.\n"
+                    "- **Fraud Rate Analysis:** Monitoring fraud rates across different hours helps in allocating resources effectively and enhancing surveillance during high-risk periods."
                 )
                 pdf.multi_cell(0, 10, eda_summary)
                 pdf.ln(5)
@@ -493,7 +560,8 @@ if page_selection == "Download Report":
                 pdf.set_font("Arial", '', 12)
                 feature_importance_summary = (
                     "- **High-Impact Features:** Identifying key features that significantly influence fraud detection aids in enhancing data collection and monitoring processes.\n"
-                    "- **Low-Impact Features:** Recognizing features with minimal influence can streamline data preprocessing and reduce computational overhead."
+                    "- **Low-Impact Features:** Recognizing features with minimal influence can streamline data preprocessing and reduce computational overhead without compromising model performance.\n"
+                    "- **Model Selection:** Different models may prioritize different features, offering diverse perspectives on what drives fraudulent activities."
                 )
                 pdf.multi_cell(0, 10, feature_importance_summary)
                 pdf.ln(5)
@@ -504,7 +572,8 @@ if page_selection == "Download Report":
                 pdf.set_font("Arial", '', 12)
                 model_evaluation_summary = (
                     "- **Performance Metrics:** Models are evaluated based on F1-Score, Accuracy, Matthews Correlation Coefficient (MCC), and ROC-AUC.\n"
-                    "- **ROC Curve Analysis:** The ROC-AUC provides insights into the trade-off between true positive and false positive rates, indicating model effectiveness."
+                    "- **ROC Curve Analysis:** The ROC-AUC provides insights into the trade-off between true positive and false positive rates, indicating model effectiveness.\n"
+                    "- **Personalized Metrics:** Detailed performance metrics tailored to the specific model and dataset configuration offer a clear understanding of model strengths and weaknesses."
                 )
                 pdf.multi_cell(0, 10, model_evaluation_summary)
                 pdf.ln(5)
@@ -548,7 +617,6 @@ if page_selection == "Feedback":
             # Placeholder for feedback storage (e.g., database or email)
             # Implement actual storage mechanism as needed
             st.success("Thank you for your feedback!")
-
 
 
 
