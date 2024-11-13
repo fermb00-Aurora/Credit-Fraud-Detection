@@ -5,6 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
+import plotly.graph_objects as go
 import numpy as np
 import warnings
 import streamlit as st
@@ -60,17 +61,12 @@ page_selection = st.sidebar.radio("Go to", [
 def load_data():
     try:
         # Determine the directory where the script is located
-        if 'streamlit' in os.environ.get('TERM_PROGRAM', '').lower():
-            # When running in Streamlit Cloud or similar environments
-            script_dir = Path(__file__).parent
-        else:
-            # Local execution
-            script_dir = Path(__file__).parent
-        data_path = script_dir / 'credit.csv'
+        script_dir = Path(__file__).parent
+        data_path = script_dir / 'creditcard.csv'
         
         # Check if the file exists
         if not data_path.exists():
-            st.error(f"The file 'credit.csv' was not found in the directory: {script_dir}")
+            st.error(f"The file 'creditcard.csv' was not found in the directory: {script_dir}")
             # Optional: List files in the directory for debugging
             files = list(script_dir.iterdir())
             st.info("Files in the script directory:")
@@ -90,12 +86,7 @@ def load_data():
 def load_model(model_filename):
     try:
         # Determine the directory where the script is located
-        if 'streamlit' in os.environ.get('TERM_PROGRAM', '').lower():
-            # When running in Streamlit Cloud or similar environments
-            script_dir = Path(__file__).parent
-        else:
-            # Local execution
-            script_dir = Path(__file__).parent
+        script_dir = Path(__file__).parent
         model_path = script_dir / model_filename
         
         # Check if the model file exists
@@ -129,15 +120,15 @@ if df is not None:
         st.header("📘 Executive Summary")
         st.markdown("""
         **Objective:**  
-        Empower financial executives with advanced tools to detect and analyze fraudulent credit card transactions. This dashboard leverages sophisticated machine learning models to provide actionable insights, thereby mitigating financial losses and enhancing security measures.
-    
+        Empower financial executives with advanced tools to detect and analyze fraudulent credit card transactions. By leveraging sophisticated machine learning models, this platform provides actionable insights to mitigate financial losses and enhance security measures.
+
         **Key Highlights:**
         - **Comprehensive Data Analysis:** In-depth exploration of transaction data to identify patterns and anomalies.
         - **Advanced Machine Learning Models:** Evaluation of pre-trained models including Logistic Regression, Random Forest, and Extra Trees for accurate fraud detection.
         - **Interactive Visualizations:** Dynamic charts and graphs that facilitate intuitive understanding of data trends and model performances.
         - **Actionable Insights:** Detailed reports and metrics that support strategic decision-making and risk management.
         - **Customizable Reports:** Generate and download tailored PDF reports to share findings with stakeholders.
-    
+
         **Business Implications:**
         - **Risk Mitigation:** Early detection of fraudulent activities reduces financial losses and safeguards customer trust.
         - **Operational Efficiency:** Streamlined analysis processes save time and resources, enabling focus on critical tasks.
@@ -236,7 +227,7 @@ if df is not None:
 
         # Transactions Over Time by Hour
         st.subheader("📅 Transactions Over Time")
-        # Convert 'Time' from seconds to hours
+        # Convert 'Time' from seconds to hours for better readability
         df['Hour'] = (df['Time'] // 3600) % 24
         transactions_per_hour = df.groupby(['Hour', 'Class']).size().reset_index(name='Counts')
         fig_hour = px.bar(
@@ -327,7 +318,7 @@ if df is not None:
         st.markdown("""
         **Understanding Feature Impact:**
         Identifying which features significantly influence model predictions is paramount in credit card fraud detection. This section delves into the importance of various features across different machine learning models, providing clarity on what drives fraud detection decisions.
-    
+
         **Models Analyzed:**
         - **Random Forest:** Utilizes ensemble learning to provide feature importance based on the mean decrease in impurity.
         - **Extra Trees:** Similar to Random Forest but with more randomness, offering robust feature importance metrics.
@@ -688,7 +679,7 @@ if df is not None:
         Enter transaction details to receive an immediate prediction on whether the transaction is fraudulent.
         """)
 
-        # Default model for simulation
+        # Load the model
         default_model_filename = 'random_forest.pkl'
         model_sim = load_model(default_model_filename)
 
@@ -703,7 +694,7 @@ if df is not None:
                     V_features[f'V{i}'] = st.number_input(f'V{i}', value=0.0, format="%.5f", key=f'V{i}')
 
             with col2:
-                Time = st.number_input('Time', min_value=0, value=0, step=1, key='Time')
+                Time = st.number_input('Time (seconds since first transaction)', min_value=0, value=0, step=1, key='Time')
                 Amount = st.number_input('Transaction Amount ($)', min_value=0.0, value=0.0, format="%.2f", key='Amount')
 
             # Predict button
