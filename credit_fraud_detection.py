@@ -21,7 +21,7 @@ st.set_page_config(page_title="Credit Card Fraud Detection", layout="wide")
 st.title('💳 Credit Card Fraud Detection Dashboard')
 st.sidebar.header("Menu")
 page_selection = st.sidebar.radio("Navigate:", [
-    "Introduction", "Exploratory Data Analysis", "Feature Importance", 
+    "Introduction", "Exploratory Data Analysis", "Feature Selection", 
     "Model Evaluation", "Real-Time Prediction", "Download Report", "Feedback"
 ])
 
@@ -37,78 +37,55 @@ df = load_data()
 if page_selection == "Introduction":
     st.header("📘 Executive Summary")
     st.write("""
-    Welcome to the Credit Card Fraud Detection Dashboard, designed specifically for C-suite executives in the banking sector.
-    This application provides an advanced analysis of fraudulent activity, leveraging pre-trained machine learning models.
-    It offers:
-    - In-depth Exploratory Data Analysis (EDA) for data-driven insights.
-    - Evaluation of models like Logistic Regression, k-Nearest Neighbors, Random Forest, and Extra Trees for fraud detection.
-    - Business-oriented metrics and visualizations to aid in decision-making.
+    Welcome to the Credit Card Fraud Detection Dashboard, tailored for executives in the banking sector.
+    This app offers comprehensive analysis and evaluation of machine learning models for fraud detection.
+    Key Features:
+    - Detailed Exploratory Data Analysis (EDA)
+    - Advanced Feature Selection for model optimization
+    - Evaluation of pre-trained models like Logistic Regression, kNN, Random Forest, and Extra Trees
     """)
 
-# Exploratory Data Analysis
-if page_selection == "Exploratory Data Analysis":
-    st.header("📊 Exploratory Data Analysis")
+# Feature Selection
+if page_selection == "Feature Selection":
+    st.header("🔍 Feature Selection")
 
-    # Fraud vs Valid Transaction Distribution
-    fraud = df[df['Class'] == 1]
-    valid = df[df['Class'] == 0]
-    outlier_percentage = (len(fraud) / len(valid)) * 100
-
-    st.subheader("Fraudulent vs. Valid Transactions")
-    fig1 = px.pie(df, names='Class', title='Distribution of Fraudulent vs. Valid Transactions')
-    st.plotly_chart(fig1)
-
-    st.subheader("Transaction Amount Distribution by Class")
-    fig2 = px.histogram(df, x='Amount', color='Class', nbins=50, title='Transaction Amount Distribution by Class',
-                        labels={'Amount': 'Transaction Amount', 'Class': 'Transaction Type'})
-    st.plotly_chart(fig2)
-
-    # Top 5 Most Frequent Transaction Amount Ranges
-    df['Amount Range'] = pd.cut(df['Amount'], bins=[0, 10, 50, 100, 500, 2000, 10000], 
-                                labels=['0-10', '10-50', '50-100', '100-500', '500-2000', '2000+'])
-    amount_freq = df['Amount Range'].value_counts().sort_index()
-    fig3 = px.bar(amount_freq, x=amount_freq.index, y=amount_freq.values, 
-                  title='Frequency of Transaction Amount Ranges')
-    st.plotly_chart(fig3)
-
-# Feature Importance
-if page_selection == "Feature Importance":
-    st.header("🔍 Feature Importance")
-    model_filename = 'random_forest.pkl'
-    model_path = os.path.join(os.path.dirname(__file__), model_filename)
+    # Dropdown to select the model for feature importance
+    model_choices = {
+        'Random Forest': 'random_forest.pkl',
+        'Extra Trees': 'extra_trees.pkl'
+    }
+    feature_model = st.sidebar.selectbox("Select model for feature importance:", list(model_choices.keys()))
+    model_path = os.path.join(os.path.dirname(__file__), model_choices[feature_model])
     model = joblib.load(model_path)
 
+    # Feature importance
     feature_importances = model.feature_importances_
     features = df.drop(columns=['Class']).columns
     importance_df = pd.DataFrame({'Feature': features, 'Importance': feature_importances})
     importance_df = importance_df.sort_values(by='Importance', ascending=False)
 
-    st.subheader("Top 3 Most and Least Important Features")
-    st.write("These features have the highest and lowest impact on predicting fraud cases.")
+    # Checkbox to show plot of feature importance
+    show_plot = st.sidebar.checkbox("Show plot of feature importance")
 
-    # Top 3 Most Important Features
-    for i in range(3):
-        st.write(f"🏅 **{i+1}. {importance_df.iloc[i]['Feature']}** - Importance: **{importance_df.iloc[i]['Importance']:.4f}**")
+    # Slider for selecting the number of top features
+    num_top_features = st.sidebar.slider("Number of top features", min_value=5, max_value=20, value=15)
 
-    # Top 3 Least Important Features
-    for i in range(1, 4):
-        st.write(f"🥉 **{4-i}. {importance_df.iloc[-i]['Feature']}** - Importance: **{importance_df.iloc[-i]['Importance']:.4f}**")
+    # Checkbox to display selected top features
+    show_selected_features = st.sidebar.checkbox("Show selected top features")
 
-    # Feature Importance Bar Plot
-    fig_imp = px.bar(importance_df, x='Importance', y='Feature', orientation='h', title="Feature Importance")
-    st.plotly_chart(fig_imp)
+    if show_plot:
+        fig_imp = px.bar(importance_df.head(num_top_features), x='Importance', y='Feature', orientation='h',
+                         title="Top Features by Importance")
+        st.plotly_chart(fig_imp)
+
+    if show_selected_features:
+        st.write("Selected Top Features:")
+        st.write(importance_df.head(num_top_features))
 
 # Model Evaluation
 if page_selection == "Model Evaluation":
     st.header("🧠 Model Evaluation")
-    model_choices = {
-        'Logistic Regression': 'logistic_regression.pkl',
-        'k-Nearest Neighbors (kNN)': 'knn.pkl',
-        'Random Forest': 'random_forest.pkl',
-        'Extra Trees': 'extra_trees.pkl'
-    }
-
-    classifier = st.sidebar.selectbox("Select Model", list(model_choices.keys()))
+    classifier = st.sidebar.selectbox("Select Model for Evaluation", list(model_choices.keys()))
     model_file = model_choices[classifier]
     model_path = os.path.join(os.path.dirname(__file__), model_file)
     model = joblib.load(model_path)
