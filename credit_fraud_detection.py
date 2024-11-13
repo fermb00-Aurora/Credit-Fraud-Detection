@@ -480,6 +480,16 @@ elif page_selection == "Model Evaluation":
     - **Threshold Analysis:** The F1 Score vs. Threshold plot helps in selecting an optimal decision threshold that balances precision and recall according to business needs.
     """)
 
+# Continue with the next page in your navigation menu
+elif page_selection == "Simulator":
+    st.header("🚀 Simulator")
+    st.markdown("""
+    **Simulate and Predict Fraudulent Transactions:**
+    Enter transaction details to receive an immediate prediction on whether the transaction is fraudulent.
+    """)
+    # ... Rest of the Simulator code ...
+
+
 
     # Simulator Page
     elif page_selection == "Simulator":
