@@ -1,3 +1,5 @@
+# fraud_detection_app.py
+
 # Import necessary libraries
 import pandas as pd
 import matplotlib.pyplot as plt
