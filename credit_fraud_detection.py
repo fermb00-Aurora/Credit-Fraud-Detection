@@ -54,38 +54,27 @@ if page_selection == "Executive Summary":
     - **Model Evaluation**: Assess the performance of pre-trained models (Logistic Regression, kNN, Random Forest, Extra Trees) for fraud detection.
     - **Business Insights**: Actionable insights to help mitigate financial risks associated with credit card fraud.
     - **Automated PDF Reporting**: Generate detailed, shareable reports for decision-making.
-
-    Navigate through the menu to explore data, evaluate model performance, and gain actionable insights.
     """)
 
 # Data Overview
 if page_selection == "Data Overview":
     st.header("🔍 Data Overview")
-
-    # Data Sample
     if st.sidebar.checkbox('Show DataFrame Sample'):
         st.dataframe(df.head(100))
 
-    # Data Summary Table
-    st.subheader("Data Summary")
-    data_summary = df.describe().T
-    st.dataframe(data_summary.style.background_gradient(cmap='coolwarm'))
+    st.subheader("Dataset Summary")
+    st.dataframe(df.describe().T.style.background_gradient(cmap='coolwarm'))
 
-    # Missing Values Table
-    st.subheader("Missing Values")
-    missing_values = df.isnull().sum()
-    missing_table = pd.DataFrame(missing_values[missing_values > 0], columns=["Missing Values"])
-    if not missing_table.empty:
-        st.dataframe(missing_table)
-    else:
-        st.write("No missing values in the dataset.")
+# Exploratory Data Analysis
+if page_selection == "Exploratory Data Analysis":
+    st.header("📊 Exploratory Data Analysis")
 
     # Fraud Ratio Pie Chart
+    st.subheader("Fraud Ratio Analysis")
     fraud = df[df['Class'] == 1]
     valid = df[df['Class'] == 0]
-    outlier_percentage = (len(fraud) / len(valid)) * 100
+    fraud_ratio = (len(fraud) / len(valid)) * 100
 
-    st.subheader("Fraud Ratio")
     fig_pie = px.pie(
         names=['Valid Transactions', 'Fraudulent Transactions'],
         values=[len(valid), len(fraud)],
@@ -94,37 +83,35 @@ if page_selection == "Data Overview":
     )
     st.plotly_chart(fig_pie)
 
-    # Distribution of Transaction Amount
-    st.subheader("Transaction Amount Distribution")
+    st.write(f"**Fraudulent transactions represent**: {fraud_ratio:.3f}% of all transactions.")
+
+    # Transaction Amount Distribution
+    st.subheader("Transaction Amount Distribution by Class")
     fig_amount = px.histogram(
         df, x='Amount', color='Class',
-        title='Transaction Amount Distribution by Class',
+        title='Transaction Amount Distribution by Fraud Class',
         marginal='box',
         color_discrete_sequence=['#2ca02c', '#d62728']
     )
     st.plotly_chart(fig_amount)
 
-    # Top 5 Most Frequent Values for Amount
-    st.subheader("Top 5 Most Frequent Transaction Amounts")
-    top_amounts = df['Amount'].value_counts().head(5)
-    st.dataframe(top_amounts.to_frame().rename(columns={'Amount': 'Frequency'}))
+    # Top 5 Most Frequent Amount Ranges
+    st.subheader("Top 5 Most Frequent Transaction Amount Ranges")
+    df['AmountRange'] = pd.cut(df['Amount'], bins=[0, 10, 50, 100, 500, 1000, 5000, 10000, 20000], right=False)
+    amount_range_counts = df['AmountRange'].value_counts().sort_index()
+    
+    fig_range = px.bar(
+        amount_range_counts,
+        x=amount_range_counts.index.astype(str),
+        y=amount_range_counts.values,
+        labels={'x': 'Amount Range', 'y': 'Frequency'},
+        title="Frequency of Transaction Amount Ranges"
+    )
+    st.plotly_chart(fig_range)
 
-# Exploratory Data Analysis
-if page_selection == "Exploratory Data Analysis":
-    st.header("📊 Exploratory Data Analysis")
-    st.subheader("Correlation Heatmap")
+    st.write("The above chart shows the frequency of transactions within specific amount ranges. This information helps identify common transaction values and potential risk thresholds.")
 
-    corr = df.corr()
-    fig = go.Figure(data=go.Heatmap(
-        z=corr.values,
-        x=corr.columns,
-        y=corr.columns,
-        colorscale="YlOrRd",
-        hoverongaps=False
-    ))
-    fig.update_layout(title='Interactive Correlation Heatmap', height=700)
-    st.plotly_chart(fig)
-
-# Feature Importance and Model Evaluation remain unchanged as per previous request.
+# Feature Importance and Model Evaluation sections remain unchanged.
 
 # Feedback Section remains unchanged.
+
