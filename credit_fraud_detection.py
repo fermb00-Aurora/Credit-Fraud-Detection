@@ -19,6 +19,8 @@ from sklearn.metrics import (
     accuracy_score,
     roc_curve,
     auc,
+    precision_recall_curve,
+    average_precision_score,
     precision_score,
     recall_score,
     fbeta_score
@@ -60,7 +62,7 @@ def load_data(filepath='creditcard.csv'):
 def load_model(model_filename):
     model_path = os.path.join(os.path.dirname(__file__), model_filename)
     if not os.path.exists(model_path):
-        st.error(f"Model file {model_filename} not found in the directory.")
+        st.error(f"Model file '{model_filename}' not found in the directory.")
         return None
     model = joblib.load(model_path)
     return model
@@ -340,7 +342,7 @@ if page_selection == "Model Evaluation":
     st.header("🧠 Model Evaluation")
     st.markdown("""
     **Comprehensive Model Assessment:**
-    This section provides an in-depth evaluation of various machine learning models used for fraud detection. By analyzing key performance metrics and visualizations, executives can understand each model's effectiveness and suitability for deployment.
+    This section provides an in-depth evaluation of various machine learning models used for fraud detection. By analyzing key performance metrics and interactive visualizations, executives can understand each model's effectiveness and suitability for deployment.
     """)
 
     # Dictionary of all available models for evaluation (excluding SVM)
@@ -387,6 +389,7 @@ if page_selection == "Model Evaluation":
             'recall': recall_score(y_test, y_pred),
             'f2_score': fbeta_score(y_test, y_pred, beta=2)
         }
+        st.session_state['model_evaluation']['test_size'] = test_size  # Store test_size
 
         # Determine if ROC Curve is available and store y_proba if applicable
         roc_available = False
@@ -423,8 +426,12 @@ if page_selection == "Model Evaluation":
         st.subheader("📋 Classification Report")
         report = classification_report(y_test, y_pred, output_dict=True)
         report_df = pd.DataFrame(report).transpose()
-        # Enhance the classification report with better formatting
-        st.dataframe(report_df.style.applymap(lambda x: 'background-color: #FDEBD0' if isinstance(x, float) and x < 0.5 else '').background_gradient(cmap='coolwarm'))
+
+        # Display the classification report as an interactive table with conditional formatting
+        st.dataframe(
+            report_df.style.applymap(lambda x: 'background-color: #FDEBD0' if isinstance(x, float) and x < 0.5 else '')
+                    .background_gradient(cmap='coolwarm')
+        )
 
         # Performance Metrics
         metrics = st.session_state['model_evaluation']['metrics']
@@ -461,6 +468,29 @@ if page_selection == "Model Evaluation":
         else:
             st.info("ROC Curve is not available for the selected model.")
 
+        # Precision-Recall Curve
+        if roc_available and hasattr(model, "predict_proba") or hasattr(model, "decision_function"):
+            st.subheader("📈 Precision-Recall Curve")
+            precision, recall, thresholds = precision_recall_curve(y_test, y_proba)
+            avg_precision = average_precision_score(y_test, y_proba)
+
+            fig_pr = px.area(
+                x=recall, y=precision,
+                title=f"Precision-Recall Curve (AP = {avg_precision:.4f}) for {classifier}",
+                labels={'x': 'Recall', 'y': 'Precision'},
+                width=700, height=500
+            )
+            fig_pr.add_shape(
+                type='line',
+                line=dict(dash='dash'),
+                x0=0, x1=1, y0=0, y1=1
+            )
+            fig_pr.update_yaxes(scale=1.05)
+            fig_pr.update_xaxes(scale=1.05)
+            st.plotly_chart(fig_pr, use_container_width=True)
+        else:
+            st.info("Precision-Recall Curve is not available for the selected model.")
+
         # Additional Evaluation Metrics
         st.subheader("📈 Additional Evaluation Metrics")
         st.markdown("""
@@ -481,16 +511,17 @@ if page_selection == "Model Evaluation":
         - **F2-Score:** Focuses more on recall than precision.
         """)
 
-        # Personalized and Cool Report Enhancements
+        # Personalized and Insightful Summary
         st.subheader("📄 Personalized Model Evaluation Summary")
         roc_auc_text = f"{roc_auc:.4f}" if roc_available else "N/A"
+        test_size = st.session_state['model_evaluation'].get('test_size', "N/A")
         st.markdown(f"""
         **Model:** {classifier}  
         **Test Set Size:** {test_size}%  
         **Total Test Samples:** {len(y_test)}  
         **Fraudulent Transactions in Test Set:** {y_test.sum()} ({(y_test.sum() / len(y_test)) * 100:.4f}%)  
         **Valid Transactions in Test Set:** {len(y_test) - y_test.sum()} ({100 - (y_test.sum() / len(y_test)) * 100:.4f}%)  
-        
+
         **Performance Overview:**
         - **Accuracy:** {metrics['accuracy']:.4f}
         - **F1-Score:** {metrics['f1_score']:.4f}
@@ -501,7 +532,6 @@ if page_selection == "Model Evaluation":
         - **ROC-AUC:** {roc_auc_text}
         """)
 
-        # Dynamic Insights with Relevant Number Data
         st.markdown("""
         **Dynamic Insights:**
         - The **Accuracy** of {model_accuracy:.2f}% indicates that the model correctly predicted {correct_preds} out of {total_preds} transactions.
@@ -580,9 +610,9 @@ if page_selection == "Download Report":
     if st.button("Generate Report"):
         with st.spinner("Generating PDF report..."):
             try:
-                # Check if model evaluation data is available
+                # Retrieve evaluation data from session state
                 eval_data = st.session_state['model_evaluation']
-                required_keys = ['y_test', 'y_pred', 'classifier', 'metrics']
+                required_keys = ['y_test', 'y_pred', 'classifier', 'metrics', 'test_size']
                 if not all(key in eval_data for key in required_keys):
                     st.error("Please perform a model evaluation before generating the report.")
                 else:
@@ -590,6 +620,7 @@ if page_selection == "Download Report":
                     y_pred = eval_data['y_pred']
                     classifier = eval_data['classifier']
                     metrics = eval_data['metrics']
+                    test_size = eval_data['test_size']
                     roc_auc = eval_data.get('roc_auc', "N/A")
                     y_proba = eval_data.get('y_proba', None)
 
@@ -634,7 +665,7 @@ if page_selection == "Download Report":
                     pdf.set_font("Arial", '', 12)
                     model_evaluation_summary = (
                         f"- **Model:** {classifier}\n"
-                        f"- **Test Set Size:** {int(test_size)}%\n"
+                        f"- **Test Set Size:** {test_size}%\n"
                         f"- **Total Test Samples:** {len(y_test)}\n"
                         f"- **Fraudulent Transactions in Test Set:** {y_test.sum()} ({(y_test.sum() / len(y_test)) * 100:.4f}%)\n"
                         f"- **Valid Transactions in Test Set:** {len(y_test) - y_test.sum()} ({100 - (y_test.sum() / len(y_test)) * 100:.4f}%)\n"
@@ -733,6 +764,7 @@ if page_selection == "Feedback":
             # Placeholder for feedback storage (e.g., database or email)
             # Implement actual storage mechanism as needed
             st.success("Thank you for your feedback!")
+
 
 
 
