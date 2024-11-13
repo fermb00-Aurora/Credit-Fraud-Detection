@@ -16,9 +16,29 @@ from sklearn.metrics import confusion_matrix, classification_report, matthews_co
 # Suppress warnings
 warnings.filterwarnings("ignore")
 
+# Custom CSS for Dark Sidebar
+st.markdown("""
+    <style>
+    [data-testid="stSidebar"] {
+        background-color: #2b2b2b;
+        color: #e0e0e0;
+    }
+    [data-testid="stSidebar"] h2 {
+        color: #e0e0e0;
+    }
+    [data-testid="stSidebar"] label {
+        color: #e0e0e0;
+    }
+    .css-1v3fvcr:hover {
+        background-color: #444444;
+        color: #ffffff;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 # Streamlit App Title and Sidebar
 st.title('💳 Credit Card Fraud Detection Dashboard')
-st.sidebar.header("Navigation")
+st.sidebar.header("Menu")
 page_selection = st.sidebar.radio("Navigate:", ["Introduction", "Data Overview", "Exploratory Data Analysis", "Feature Importance", "Model Evaluation", "Real-Time Prediction", "Download Report", "Feedback"])
 
 # Load the dataset
@@ -56,7 +76,7 @@ if page_selection == "Data Overview":
 if page_selection == "Exploratory Data Analysis":
     st.header("📊 Exploratory Data Analysis")
     st.subheader("Correlation Heatmap")
-    
+
     corr = df.corr()
     fig = go.Figure(data=go.Heatmap(
         z=corr.values,
@@ -131,27 +151,7 @@ if page_selection == "Model Evaluation":
     report_df = pd.DataFrame(classification_report(y_test, y_pred, output_dict=True)).transpose()
     st.dataframe(report_df.style.background_gradient(cmap='coolwarm'))
 
-    # Additional Metrics
-    f1 = f1_score(y_test, y_pred)
-    accuracy = accuracy_score(y_test, y_pred)
-    mcc = matthews_corrcoef(y_test, y_pred)
-
-    st.write(f"**F1-Score**: {f1:.3f}")
-    st.write(f"**Accuracy**: {accuracy:.3f}")
-    st.write(f"**Matthews Correlation Coefficient (MCC)**: {mcc:.3f}")
-
-# Real-Time Prediction
-if page_selection == "Real-Time Prediction":
-    st.header("🔍 Real-Time Prediction")
-    uploaded_file = st.file_uploader("Upload CSV for Prediction", type=["csv"])
-    if uploaded_file:
-        new_data = pd.read_csv(uploaded_file)
-        predictions = model.predict(new_data)
-        new_data['Predictions'] = predictions
-        st.write("Predictions:")
-        st.dataframe(new_data)
-
-# Download Report
+# Report Generation
 if page_selection == "Download Report":
     st.header("📄 Generate PDF Report")
 
@@ -171,7 +171,7 @@ if page_selection == "Download Report":
 
     st.button("Generate Report", on_click=generate_report)
 
-# Feedback
+# Feedback Section
 if page_selection == "Feedback":
     st.header("💬 Feedback")
     feedback = st.text_area("Provide your feedback here:")
