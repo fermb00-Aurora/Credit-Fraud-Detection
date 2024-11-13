@@ -501,9 +501,9 @@ elif page_selection == "Simulator":
     # ... Rest of the Simulator code ...
 
 
-        # Load the model
-        default_model_filename = 'random_forest.pkl'
-        model_path = os.path.join(os.path.dirname(__file__), default_model_filename)
+# Load the model
+default_model_filename = 'random_forest.pkl'
+model_path = os.path.join(os.path.dirname(__file__), default_model_filename)
 
         try:
             model_sim = joblib.load(model_path)
