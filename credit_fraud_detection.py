@@ -358,66 +358,222 @@ if df is not None:
             st.error(f"Error loading model '{model_filename}': {e}")
 
     # Model Evaluation Page
-    elif page_selection == "Model Evaluation":
-        st.header("🧠 Model Evaluation")
+if page_selection == "Model Evaluation":
+    st.header("🧠 Model Evaluation")
+    st.markdown("""
+    **Comprehensive Model Assessment:**
+    This section provides an in-depth evaluation of various machine learning models used for fraud detection. By analyzing key performance metrics and interactive visualizations, executives can understand each model's effectiveness and suitability for deployment.
+    """)
+
+    # Dictionary of all available models for evaluation (excluding SVM)
+    all_models = {
+        'Logistic Regression': 'logistic_regression.pkl',
+        'Random Forest': 'random_forest.pkl',
+        'Extra Trees': 'extra_trees.pkl',
+        'k-Nearest Neighbors': 'knn.pkl'
+    }
+
+    classifier = st.selectbox("Select Model for Evaluation:", list(all_models.keys()))
+    model_file = all_models[classifier]
+    model = load_model(model_file)
+
+    if model:
+        # Slider for selecting test set size
+        test_size = st.slider('Select Test Set Size (%)', min_value=10, max_value=50, value=30, step=5)
+        test_size_fraction = test_size / 100
+
+        # Prepare feature matrix X and target vector y
+        X = df.drop(columns=['Class'])
+        y = df['Class']
+
+        # Split the data with stratification to maintain class distribution
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y,
+            test_size=test_size_fraction,
+            random_state=42,
+            stratify=y
+        )
+
+        # Make predictions
+        y_pred = model.predict(X_test)
+
+        # Store evaluation results in session state
+        st.session_state['model_evaluation']['y_test'] = y_test
+        st.session_state['model_evaluation']['y_pred'] = y_pred
+        st.session_state['model_evaluation']['classifier'] = classifier
+        st.session_state['model_evaluation']['metrics'] = {
+            'accuracy': accuracy_score(y_test, y_pred),
+            'f1_score': f1_score(y_test, y_pred),
+            'mcc': matthews_corrcoef(y_test, y_pred),
+            'precision': precision_score(y_test, y_pred),
+            'recall': recall_score(y_test, y_pred),
+            'f2_score': fbeta_score(y_test, y_pred, beta=2)
+        }
+        st.session_state['model_evaluation']['test_size'] = test_size  # Store test_size
+
+        # Determine if ROC Curve is available and store y_proba if applicable
+        roc_available = False
+        y_proba = None
+        if hasattr(model, "predict_proba"):
+            y_proba = model.predict_proba(X_test)[:, 1]
+            roc_available = True
+        elif hasattr(model, "decision_function"):
+            y_proba = model.decision_function(X_test)
+            # Normalize decision function scores
+            y_proba = (y_proba - y_proba.min()) / (y_proba.max() - y_proba.min())
+            roc_available = True
+
+        if roc_available:
+            st.session_state['model_evaluation']['y_proba'] = y_proba
+            fpr, tpr, thresholds = roc_curve(y_test, y_proba)
+            roc_auc = auc(fpr, tpr)
+            st.session_state['model_evaluation']['roc_auc'] = roc_auc
+        else:
+            st.session_state['model_evaluation']['roc_auc'] = "N/A"
+
+        # Confusion Matrix
+        st.subheader("🔢 Confusion Matrix")
+        cm = confusion_matrix(y_test, y_pred)
+        fig_cm, ax_cm = plt.subplots(figsize=(6, 4))
+        sns.heatmap(cm, annot=True, fmt='d', cmap='YlOrBr',
+                    xticklabels=['Valid', 'Fraud'], yticklabels=['Valid', 'Fraud'], ax=ax_cm)
+        ax_cm.set_xlabel("Predicted")
+        ax_cm.set_ylabel("Actual")
+        ax_cm.set_title(f"Confusion Matrix for {classifier}")
+        st.pyplot(fig_cm)
+
+        # Classification Report
+        st.subheader("📋 Classification Report")
+        report = classification_report(y_test, y_pred, output_dict=True)
+        report_df = pd.DataFrame(report).transpose()
+
+        # Display the classification report as an interactive table with conditional formatting
+        st.dataframe(
+            report_df.style.applymap(lambda x: 'background-color: #FDEBD0' if isinstance(x, float) and x < 0.5 else '')
+                    .background_gradient(cmap='coolwarm')
+        )
+
+        # Performance Metrics
+        metrics = st.session_state['model_evaluation']['metrics']
+        col1, col2, col3 = st.columns(3)
+        col1.metric("🔹 Accuracy", f"{metrics['accuracy']:.4f}")
+        col2.metric("🔹 F1-Score", f"{metrics['f1_score']:.4f}")
+        col3.metric("🔹 Matthews Corr. Coef.", f"{metrics['mcc']:.4f}")
+        col4, col5 = st.columns(2)
+        col4.metric("🔹 Precision", f"{metrics['precision']:.4f}")
+        col5.metric("🔹 Recall", f"{metrics['recall']:.4f}")
+        st.metric("🔹 F2-Score", f"{metrics['f2_score']:.4f}")
+
+        # ROC Curve - Only for models that support it
+        st.subheader("📈 Receiver Operating Characteristic (ROC) Curve")
+        if roc_available:
+            fpr, tpr, thresholds = roc_curve(y_test, y_proba)
+            roc_auc = auc(fpr, tpr)
+            st.session_state['model_evaluation']['roc_auc'] = roc_auc
+
+            fig_roc = px.area(
+                x=fpr, y=tpr,
+                title=f"ROC Curve (AUC = {roc_auc:.4f}) for {classifier}",
+                labels={'x': 'False Positive Rate', 'y': 'True Positive Rate'},
+                width=700, height=500
+            )
+            fig_roc.add_shape(
+                type='line',
+                line=dict(dash='dash'),
+                x0=0, x1=1, y0=0, y1=1
+            )
+            fig_roc.update_yaxes(scale=1.05)
+            fig_roc.update_xaxes(scale=1.05)
+            st.plotly_chart(fig_roc, use_container_width=True)
+        else:
+            st.info("ROC Curve is not available for the selected model.")
+
+        # Precision-Recall Curve
+        if roc_available and hasattr(model, "predict_proba") or hasattr(model, "decision_function"):
+            st.subheader("📈 Precision-Recall Curve")
+            precision, recall, thresholds = precision_recall_curve(y_test, y_proba)
+            avg_precision = average_precision_score(y_test, y_proba)
+
+            fig_pr = px.area(
+                x=recall, y=precision,
+                title=f"Precision-Recall Curve (AP = {avg_precision:.4f}) for {classifier}",
+                labels={'x': 'Recall', 'y': 'Precision'},
+                width=700, height=500
+            )
+            fig_pr.add_shape(
+                type='line',
+                line=dict(dash='dash'),
+                x0=0, x1=1, y0=0, y1=1
+            )
+            fig_pr.update_yaxes(scale=1.05)
+            fig_pr.update_xaxes(scale=1.05)
+            st.plotly_chart(fig_pr, use_container_width=True)
+        else:
+            st.info("Precision-Recall Curve is not available for the selected model.")
+
+        # Additional Evaluation Metrics
+        st.subheader("📈 Additional Evaluation Metrics")
         st.markdown("""
-        **Comprehensive Model Assessment:**
-        This section provides an in-depth evaluation of various machine learning models used for fraud detection. By analyzing key performance metrics and interactive visualizations, executives can understand each model's effectiveness and suitability for deployment.
+        **Precision:** Measures the proportion of positive identifications that were actually correct. High precision indicates a low false positive rate.
+
+        **Recall (Sensitivity):** Measures the proportion of actual positives that were identified correctly. High recall indicates a low false negative rate.
+
+        **F2-Score:** Places more emphasis on recall than precision, useful when false negatives are more critical than false positives.
         """)
 
-        # Dictionary of all available models for evaluation
-        all_models = {
-            'Logistic Regression': 'logistic_regression.pkl',
-            'Random Forest': 'random_forest.pkl',
-            'Extra Trees': 'extra_trees.pkl',
-            'k-Nearest Neighbors': 'knn.pkl'
-        }
+        st.markdown("""
+        **Comprehensive Metrics:**
+        - **Accuracy:** Proportion of correct predictions.
+        - **F1-Score:** Harmonic mean of precision and recall.
+        - **Matthews Correlation Coefficient (MCC):** Balanced measure even if classes are of very different sizes.
+        - **Precision:** Proportion of positive identifications that were actually correct.
+        - **Recall:** Proportion of actual positives that were identified correctly.
+        - **F2-Score:** Focuses more on recall than precision.
+        """)
 
-        classifier = st.selectbox("Select Model for Evaluation:", list(all_models.keys()))
-        model_file = all_models[classifier]
-        model_path = os.path.join(os.path.dirname(__file__), model_file)
+        # Personalized and Insightful Summary
+        st.subheader("📄 Personalized Model Evaluation Summary")
+        roc_auc_text = f"{roc_auc:.4f}" if roc_available else "N/A"
+        test_size = st.session_state['model_evaluation'].get('test_size', "N/A")
+        st.markdown(f"""
+        **Model:** {classifier}  
+        **Test Set Size:** {test_size}%  
+        **Total Test Samples:** {len(y_test)}  
+        **Fraudulent Transactions in Test Set:** {y_test.sum()} ({(y_test.sum() / len(y_test)) * 100:.4f}%)  
+        **Valid Transactions in Test Set:** {len(y_test) - y_test.sum()} ({100 - (y_test.sum() / len(y_test)) * 100:.4f}%)  
 
-        try:
-            model = joblib.load(model_path)
-            # Slider for selecting test set size
-            test_size = st.slider('Select Test Set Size (%)', min_value=10, max_value=50, value=30, step=5)
-            test_size_fraction = test_size / 100
+        **Performance Overview:**
+        - **Accuracy:** {metrics['accuracy']:.4f}
+        - **F1-Score:** {metrics['f1_score']:.4f}
+        - **Matthews Corr. Coef.:** {metrics['mcc']:.4f}
+        - **Precision:** {metrics['precision']:.4f}
+        - **Recall:** {metrics['recall']:.4f}
+        - **F2-Score:** {metrics['f2_score']:.4f}
+        - **ROC-AUC:** {roc_auc_text}
+        """)
 
-            # Prepare feature matrix X and target vector y
-            X = df.drop(columns=['Class'])
-            y = df['Class']
+        st.markdown("""
+        **Dynamic Insights:**
+        - The **Accuracy** of {model_accuracy:.2f}% indicates that the model correctly predicted {correct_preds} out of {total_preds} transactions.
+        - With an **F1-Score** of {model_f1:.4f}, the model balances precision and recall effectively.
+        - The **Matthews Correlation Coefficient (MCC)** of {model_mcc:.4f} suggests a strong correlation between the observed and predicted classifications.
+        - **Precision** and **Recall** scores of {model_precision:.4f} and {model_recall:.4f} respectively highlight the model's capability to minimize false positives and false negatives.
+        - An **F2-Score** of {model_f2:.4f} emphasizes the model's focus on recall, ensuring that most fraudulent transactions are detected.
+        - The **ROC-AUC** of {model_roc_auc} demonstrates the model's ability to distinguish between fraudulent and valid transactions.
+        """.format(
+            model_accuracy=metrics['accuracy'] * 100,
+            correct_preds=int(metrics['accuracy'] * len(y_test)),
+            total_preds=len(y_test),
+            model_f1=metrics['f1_score'],
+            model_mcc=metrics['mcc'],
+            model_precision=metrics['precision'],
+            model_recall=metrics['recall'],
+            model_f2=metrics['f2_score'],
+            model_roc_auc=roc_auc_text
+        ))
 
-            # Split the data with stratification to maintain class distribution
-            X_train, X_test, y_train, y_test = train_test_split(
-                X, y,
-                test_size=test_size_fraction,
-                random_state=42,
-                stratify=y
-            )
-
-            # Make predictions
-            y_pred = model.predict(X_test)
-
-            # Store evaluation results in session state
-            st.session_state['model_evaluation']['y_test'] = y_test
-            st.session_state['model_evaluation']['y_pred'] = y_pred
-            st.session_state['model_evaluation']['classifier'] = classifier
-            st.session_state['model_evaluation']['metrics'] = {
-                'accuracy': accuracy_score(y_test, y_pred),
-                'f1_score': f1_score(y_test, y_pred),
-                'mcc': matthews_corrcoef(y_test, y_pred),
-                'precision': precision_score(y_test, y_pred),
-                'recall': recall_score(y_test, y_pred),
-                'f2_score': fbeta_score(y_test, y_pred, beta=2),
-                'cohen_kappa': cohen_kappa_score(y_test, y_pred),
-                'roc_auc': roc_auc_score(y_test, model.predict_proba(X_test)[:,1]) if hasattr(model, "predict_proba") else "N/A"
-            }
-            st.session_state['model_evaluation']['test_size'] = test_size  # Store test_size
-
-            # Rest of your original code for Model Evaluation continues here
-
-        except Exception as e:
-            st.error(f"Error loading model '{model_file}': {e}")
+    else:
+        st.error("Failed to load the selected model.")
 
     # Simulator Page
     elif page_selection == "Simulator":
