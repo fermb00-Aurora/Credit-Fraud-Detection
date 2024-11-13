@@ -490,7 +490,6 @@ elif page_selection == "Simulator":
     # ... Rest of the Simulator code ...
 
 
-
 # Simulator Page
 elif page_selection == "Simulator":
     st.header("🚀 Simulator")
@@ -498,46 +497,43 @@ elif page_selection == "Simulator":
     **Simulate and Predict Fraudulent Transactions:**
     Enter transaction details to receive an immediate prediction on whether the transaction is fraudulent.
     """)
-    # ... Rest of the Simulator code ...
 
+    # Load the model
+    default_model_filename = 'random_forest.pkl'
+    model_path = os.path.join(os.path.dirname(__file__), default_model_filename)
+    try:
+        model_sim = joblib.load(model_path)
 
-# Load the model
-default_model_filename = 'random_forest.pkl'
-model_path = os.path.join(os.path.dirname(__file__), default_model_filename)
-try:
-    model_sim = joblib.load(model_path)
+        # Input transaction details
+        st.subheader("🔍 Enter Transaction Details")
+        col1, col2 = st.columns(2)
 
-    # Input transaction details
-    st.subheader("🔍 Enter Transaction Details")
-    col1, col2 = st.columns(2)
+        with col1:
+            V_features = {}
+            for i in range(1, 29):
+                V_features[f'V{i}'] = st.number_input(f'V{i}', value=0.0, format="%.5f", key=f'V{i}')
 
-    with col1:
-        V_features = {}
-        for i in range(1, 29):
-            V_features[f'V{i}'] = st.number_input(f'V{i}', value=0.0, format="%.5f", key=f'V{i}')
+        with col2:
+            Time = st.number_input('Time (seconds since first transaction)', min_value=0, value=0, step=1, key='Time')
+            Amount = st.number_input('Transaction Amount ($)', min_value=0.0, value=0.0, format="%.2f", key='Amount')
 
-    with col2:
-        Time = st.number_input('Time (seconds since first transaction)', min_value=0, value=0, step=1, key='Time')
-        Amount = st.number_input('Transaction Amount ($)', min_value=0.0, value=0.0, format="%.2f", key='Amount')
+        # Predict button
+        if st.button("Simulate"):
+            input_data = pd.DataFrame({
+                **V_features,
+                'Time': [Time],
+                'Amount': [Amount]
+            })
 
-    # Predict button
-    if st.button("Simulate"):
-        input_data = pd.DataFrame({
-            **V_features,
-            'Time': [Time],
-            'Amount': [Amount]
-        })
+            prediction = model_sim.predict(input_data)[0]
+            prediction_proba = model_sim.predict_proba(input_data)[0][1]
 
-        prediction = model_sim.predict(input_data)[0]
-        prediction_proba = model_sim.predict_proba(input_data)[0][1]
-
-        if prediction == 1:
-            st.error(f"⚠️ **Fraudulent Transaction Detected!** Probability: {prediction_proba:.2%}")
-        else:
-            st.success(f"✅ **Valid Transaction.** Probability of Fraud: {prediction_proba:.2%}")
-except Exception as e:
-    st.error(f"Error loading model '{default_model_filename}': {e}")
-
+            if prediction == 1:
+                st.error(f"⚠️ **Fraudulent Transaction Detected!** Probability: {prediction_proba:.2%}")
+            else:
+                st.success(f"✅ **Valid Transaction.** Probability of Fraud: {prediction_proba:.2%}")
+    except Exception as e:
+        st.error(f"Error loading model '{default_model_filename}': {e}")
 
 # Download Report Page
 elif page_selection == "Download Report":
@@ -715,4 +711,7 @@ elif page_selection == "Feedback":
 
 else:
     st.error("Page not found.")
+
+
+
 
