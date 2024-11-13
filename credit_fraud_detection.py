@@ -58,10 +58,7 @@ page_selection = st.sidebar.radio("Go to", [
 @st.cache_data
 def load_data():
     try:
-        # Get the directory of the current script
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        data_path = os.path.join(script_dir, 'creditdata.csv')
-        df = pd.read_csv(data_path)
+        df = pd.read_csv('creditdata.csv')
         return df
     except Exception as e:
         st.error(f"Error loading data: {e}")
@@ -71,9 +68,7 @@ def load_data():
 @st.cache_resource
 def load_model(model_filename):
     try:
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        model_path = os.path.join(script_dir, model_filename)
-        model = joblib.load(model_path)
+        model = joblib.load(model_filename)
         return model
     except Exception as e:
         st.error(f"Error loading model '{model_filename}': {e}")
@@ -485,9 +480,10 @@ if df is not None:
             col7.metric("🔹 Cohen's Kappa", f"{metrics['cohen_kappa']:.4f}")
 
             if roc_available and metrics['roc_auc'] != "N/A":
+                pr_auc = average_precision_score(y_test, y_proba)
                 col8, col9 = st.columns(2)
                 col8.metric("🔹 ROC-AUC", f"{metrics['roc_auc']:.4f}")
-                col9.metric("🔹 PR-AUC", f"{average_precision_score(y_test, y_proba):.4f}")
+                col9.metric("🔹 PR-AUC", f"{pr_auc:.4f}")
             else:
                 st.metric("🔹 ROC-AUC", "N/A")
                 st.metric("🔹 PR-AUC", "N/A")
@@ -548,46 +544,57 @@ if df is not None:
                 'Actual': y_test,
                 'Probability': y_proba
             })
-            df_predictions = df_predictions.sort_values(by='Probability', ascending=False)
+            df_predictions = df_predictions.sort_values(by='Probability', ascending=False).reset_index(drop=True)
             df_predictions['Cumulative'] = df_predictions['Actual'].cumsum()
             df_predictions['Cumulative_Percent'] = df_predictions['Cumulative'] / df_predictions['Actual'].sum()
+            df_predictions['Percentile'] = np.arange(1, len(df_predictions) + 1) / len(df_predictions)
+
+            # Calculate Lift
+            df_lift = df_predictions.copy()
+            df_lift['Lift'] = df_lift['Cumulative_Percent'] / df_lift['Percentile']
+
             fig_lift = px.line(
-                df_predictions,
-                x=np.arange(1, len(df_predictions) + 1),
-                y='Cumulative_Percent',
+                df_lift,
+                x='Percentile',
+                y='Lift',
                 title='Lift Curve',
-                labels={'x': 'Number of Samples', 'Cumulative_Percent': 'Cumulative Percentage of Frauds'},
+                labels={'Percentile': 'Percentile of Data', 'Lift': 'Lift'},
                 width=700, height=500
             )
             fig_lift.add_shape(
                 type='line',
                 line=dict(dash='dash'),
-                x0=0, x1=len(df_predictions), y0=0, y1=1
+                x0=0, x1=1, y0=1, y1=1
             )
             st.plotly_chart(fig_lift, use_container_width=True)
 
             # Gain Chart
             st.markdown("### 📈 Gain Chart")
-            df_predictions['Gain'] = df_predictions['Cumulative'] / df_predictions['Actual'].sum()
             fig_gain = px.line(
                 df_predictions,
-                x=np.arange(1, len(df_predictions) + 1),
-                y='Gain',
+                x='Percentile',
+                y='Cumulative_Percent',
                 title='Gain Chart',
-                labels={'x': 'Number of Samples', 'Gain': 'Gain'},
+                labels={'Percentile': 'Percentile of Data', 'Cumulative_Percent': 'Cumulative Percentage of Frauds'},
                 width=700, height=500
             )
             fig_gain.add_shape(
                 type='line',
                 line=dict(dash='dash'),
-                x0=0, x1=len(df_predictions), y0=0, y1=1
+                x0=0, x1=1, y0=0, y1=1
             )
             st.plotly_chart(fig_gain, use_container_width=True)
+
+            st.markdown("""
+            **Creative Insights:**
+            - **Lift Curve:** Illustrates how much better the model is at identifying fraudulent transactions compared to random selection. A higher lift indicates better performance.
+            - **Gain Chart:** Demonstrates the cumulative gain achieved by the model, showing the percentage of fraudulent transactions captured as more data is considered.
+            """)
 
             # Personalized and Insightful Summary
             st.subheader("📄 Personalized Model Evaluation Summary")
             roc_auc_text = f"{roc_auc:.4f}" if roc_available and metrics['roc_auc'] != "N/A" else "N/A"
-            pr_auc = average_precision_score(y_test, y_proba) if roc_available else "N/A"
+            pr_auc = average_precision_score(y_test, y_proba) if y_proba is not None else "N/A"
             test_size = st.session_state['model_evaluation'].get('test_size', "N/A")
             st.markdown(f"""
             **Model:** {classifier}  
@@ -755,10 +762,8 @@ if df is not None:
                             f"- **F2-Score:** {metrics['f2_score']:.4f}\n"
                             f"- **Cohen's Kappa:** {metrics['cohen_kappa']:.4f}\n"
                             f"- **ROC-AUC:** {roc_auc if roc_auc != 'N/A' else 'N/A'}\n"
+                            f"- **PR-AUC:** {average_precision_score(y_test, y_proba):.4f}" if y_proba is not None else "- **PR-AUC:** N/A"
                         )
-                        # Add PR-AUC if available
-                        pr_auc = average_precision_score(y_test, y_proba) if y_proba is not None else "N/A"
-                        model_evaluation_summary += f"- **PR-AUC:** {pr_auc if pr_auc != 'N/A' else 'N/A'}\n"
                         pdf.multi_cell(0, 10, model_evaluation_summary)
                         pdf.ln(5)
 
@@ -806,10 +811,11 @@ if df is not None:
                             os.remove(roc_image_path)  # Delete the temporary file
 
                         # Precision-Recall Curve Visualization
-                        if pr_auc != "N/A" and y_proba is not None:
+                        if y_proba is not None:
                             fig_pr, ax_pr = plt.subplots(figsize=(6, 4))
                             precision, recall, thresholds = precision_recall_curve(y_test, y_proba)
-                            sns.lineplot(x=recall, y=precision, label=f'PR Curve (AP = {pr_auc:.4f})', ax=ax_pr)
+                            avg_precision = average_precision_score(y_test, y_proba)
+                            sns.lineplot(x=recall, y=precision, label=f'PR Curve (AP = {avg_precision:.4f})', ax=ax_pr)
                             ax_pr.set_xlabel('Recall')
                             ax_pr.set_ylabel('Precision')
                             ax_pr.set_title(f"Precision-Recall Curve for {classifier}")
