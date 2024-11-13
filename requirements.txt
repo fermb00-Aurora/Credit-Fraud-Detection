@@ -1,9 +1,10 @@
+streamlit
 pandas
 matplotlib
 seaborn
 plotly
 numpy
-streamlit
-joblib
-fpdf
 scikit-learn
+fpdf
+joblib
+
