@@ -29,6 +29,7 @@ from sklearn.metrics import (
     roc_auc_score
 )
 import tempfile
+from pathlib import Path
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings("ignore")
@@ -58,7 +59,27 @@ page_selection = st.sidebar.radio("Go to", [
 @st.cache_data
 def load_data():
     try:
-        df = pd.read_csv('creditdata.csv')
+        # Determine the directory where the script is located
+        if 'streamlit' in os.environ.get('TERM_PROGRAM', '').lower():
+            # When running in Streamlit Cloud or similar environments
+            script_dir = Path(__file__).parent
+        else:
+            # Local execution
+            script_dir = Path(__file__).parent
+        data_path = script_dir / 'credit.csv'
+        
+        # Check if the file exists
+        if not data_path.exists():
+            st.error(f"The file 'credit.csv' was not found in the directory: {script_dir}")
+            # Optional: List files in the directory for debugging
+            files = list(script_dir.iterdir())
+            st.info("Files in the script directory:")
+            for file in files:
+                st.write(f"- {file.name}")
+            return None
+        
+        # Load the dataset
+        df = pd.read_csv(data_path)
         return df
     except Exception as e:
         st.error(f"Error loading data: {e}")
@@ -68,7 +89,27 @@ def load_data():
 @st.cache_resource
 def load_model(model_filename):
     try:
-        model = joblib.load(model_filename)
+        # Determine the directory where the script is located
+        if 'streamlit' in os.environ.get('TERM_PROGRAM', '').lower():
+            # When running in Streamlit Cloud or similar environments
+            script_dir = Path(__file__).parent
+        else:
+            # Local execution
+            script_dir = Path(__file__).parent
+        model_path = script_dir / model_filename
+        
+        # Check if the model file exists
+        if not model_path.exists():
+            st.error(f"Model file '{model_filename}' not found in the directory: {script_dir}")
+            # Optional: List files in the directory for debugging
+            files = list(script_dir.iterdir())
+            st.info("Files in the script directory:")
+            for file in files:
+                st.write(f"- {file.name}")
+            return None
+        
+        # Load the model
+        model = joblib.load(model_path)
         return model
     except Exception as e:
         st.error(f"Error loading model '{model_filename}': {e}")
@@ -602,7 +643,7 @@ if df is not None:
             **Total Test Samples:** {len(y_test)}  
             **Fraudulent Transactions in Test Set:** {y_test.sum()} ({(y_test.sum() / len(y_test)) * 100:.4f}%)  
             **Valid Transactions in Test Set:** {len(y_test) - y_test.sum()} ({100 - (y_test.sum() / len(y_test)) * 100:.4f}%)  
-    
+
             **Performance Overview:**
             - **Accuracy:** {metrics['accuracy']:.4f}
             - **F1-Score:** {metrics['f1_score']:.4f}
@@ -762,8 +803,10 @@ if df is not None:
                             f"- **F2-Score:** {metrics['f2_score']:.4f}\n"
                             f"- **Cohen's Kappa:** {metrics['cohen_kappa']:.4f}\n"
                             f"- **ROC-AUC:** {roc_auc if roc_auc != 'N/A' else 'N/A'}\n"
-                            f"- **PR-AUC:** {average_precision_score(y_test, y_proba):.4f}" if y_proba is not None else "- **PR-AUC:** N/A"
                         )
+                        # Add PR-AUC if available
+                        pr_auc = average_precision_score(y_test, y_proba) if y_proba is not None else "N/A"
+                        model_evaluation_summary += f"- **PR-AUC:** {pr_auc if pr_auc != 'N/A' else 'N/A'}\n"
                         pdf.multi_cell(0, 10, model_evaluation_summary)
                         pdf.ln(5)
 
@@ -874,3 +917,4 @@ if df is not None:
 
     else:
         st.error("Page not found.")
+
