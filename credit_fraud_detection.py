@@ -16,10 +16,10 @@ from sklearn.metrics import confusion_matrix, classification_report, matthews_co
 # Suppress warnings
 warnings.filterwarnings("ignore")
 
-# Streamlit App Title
+# Streamlit App Title and Sidebar
 st.title('💳 Credit Card Fraud Detection Dashboard')
 st.sidebar.header("Navigation")
-page_selection = st.sidebar.radio("Navigate:", ["Introduction", "Data Overview", "Exploratory Data Analysis", "Feature Importance", "Model Evaluation", "Download Report", "Feedback"])
+page_selection = st.sidebar.radio("Navigate:", ["Introduction", "Data Overview", "Exploratory Data Analysis", "Feature Importance", "Model Evaluation", "Real-Time Prediction", "Download Report", "Feedback"])
 
 # Load the dataset
 @st.cache_data
@@ -29,12 +29,73 @@ def load_data():
 
 df = load_data()
 
-# Global variables for report generation
-y_test_global = None
-y_pred_global = None
-classifier_global = None
+# Introduction
+if page_selection == "Introduction":
+    st.header("📘 Introduction")
+    st.write("""
+    Welcome to the enhanced Credit Card Fraud Detection Dashboard! This app provides:
+    - Comprehensive data analysis and visualization.
+    - Evaluation of pre-trained machine learning models (Logistic Regression, kNN, Random Forest, Extra Trees).
+    - Business insights, cost-benefit analysis, and a detailed report.
+    """)
 
-# Model Evaluation Section
+# Data Overview
+if page_selection == "Data Overview":
+    st.header("🔍 Data Overview")
+    if st.sidebar.checkbox('Show DataFrame Sample'):
+        st.dataframe(df.head(100))
+
+    fraud = df[df['Class'] == 1]
+    valid = df[df['Class'] == 0]
+    outlier_percentage = (len(fraud) / len(valid)) * 100
+
+    st.write(f"Fraudulent transactions: **{outlier_percentage:.3f}%**")
+    st.write(f"Fraud Cases: **{len(fraud)}**, Valid Cases: **{len(valid)}**")
+
+# Exploratory Data Analysis
+if page_selection == "Exploratory Data Analysis":
+    st.header("📊 Exploratory Data Analysis")
+    st.subheader("Correlation Heatmap")
+    
+    corr = df.corr()
+    fig = go.Figure(data=go.Heatmap(
+        z=corr.values,
+        x=corr.columns,
+        y=corr.columns,
+        colorscale="YlOrRd",
+        hoverongaps=False
+    ))
+    fig.update_layout(title='Interactive Correlation Heatmap', height=700)
+    st.plotly_chart(fig)
+
+# Feature Importance
+if page_selection == "Feature Importance":
+    st.header("🔍 Feature Importance")
+    model_filename = 'random_forest.pkl'
+    model_path = os.path.join(os.path.dirname(__file__), model_filename)
+    model = joblib.load(model_path)
+
+    feature_importances = model.feature_importances_
+    features = df.drop(columns=['Class']).columns
+    importance_df = pd.DataFrame({'Feature': features, 'Importance': feature_importances})
+    importance_df = importance_df.sort_values(by='Importance', ascending=False)
+
+    st.subheader("Top 3 Most and Least Important Features")
+    st.write("These features have the highest and lowest impact on predicting fraud cases.")
+
+    # Top 3 Most Important Features
+    for i in range(3):
+        st.write(f"🏅 **{i+1}. {importance_df.iloc[i]['Feature']}** - Importance: **{importance_df.iloc[i]['Importance']:.4f}**")
+
+    # Top 3 Least Important Features
+    for i in range(1, 4):
+        st.write(f"🥉 **{4-i}. {importance_df.iloc[-i]['Feature']}** - Importance: **{importance_df.iloc[-i]['Importance']:.4f}**")
+
+    # Feature Importance Bar Plot
+    fig_imp = px.bar(importance_df, x='Importance', y='Feature', orientation='h', title="Feature Importance")
+    st.plotly_chart(fig_imp)
+
+# Model Evaluation
 if page_selection == "Model Evaluation":
     st.header("🧠 Model Evaluation")
     model_choices = {
@@ -56,12 +117,7 @@ if page_selection == "Model Evaluation":
 
     y_pred = model.predict(X_test)
 
-    # Store global variables for report generation
-    y_test_global = y_test
-    y_pred_global = y_pred
-    classifier_global = classifier
-
-    # Confusion Matrix
+    # Enhanced Confusion Matrix
     cm = confusion_matrix(y_test, y_pred)
     fig_cm = plt.figure(figsize=(8, 6))
     sns.heatmap(cm, annot=True, fmt='d', cmap='YlOrBr')
@@ -84,37 +140,38 @@ if page_selection == "Model Evaluation":
     st.write(f"**Accuracy**: {accuracy:.3f}")
     st.write(f"**Matthews Correlation Coefficient (MCC)**: {mcc:.3f}")
 
-# Download Report Section
+# Real-Time Prediction
+if page_selection == "Real-Time Prediction":
+    st.header("🔍 Real-Time Prediction")
+    uploaded_file = st.file_uploader("Upload CSV for Prediction", type=["csv"])
+    if uploaded_file:
+        new_data = pd.read_csv(uploaded_file)
+        predictions = model.predict(new_data)
+        new_data['Predictions'] = predictions
+        st.write("Predictions:")
+        st.dataframe(new_data)
+
+# Download Report
 if page_selection == "Download Report":
     st.header("📄 Generate PDF Report")
 
     def generate_report():
-        if y_test_global is None or y_pred_global is None:
-            st.error("No evaluation data available. Please run model evaluation first.")
-            return
-
-        try:
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", size=12)
-            pdf.cell(200, 10, txt="Credit Card Fraud Detection Report", ln=True, align='C')
-            pdf.cell(200, 10, txt=f"Selected Model: {classifier_global}", ln=True)
-            pdf.multi_cell(0, 10, classification_report(y_test_global, y_pred_global))
-            pdf.cell(200, 10, txt=f"F1-Score: {f1_score(y_test_global, y_pred_global):.3f}", ln=True)
-            pdf.cell(200, 10, txt=f"Accuracy: {accuracy_score(y_test_global, y_pred_global):.3f}", ln=True)
-            pdf.cell(200, 10, txt=f"MCC: {matthews_corrcoef(y_test_global, y_pred_global):.3f}", ln=True)
-
-            report_file = "fraud_detection_report.pdf"
-            pdf.output(report_file)
-            with open(report_file, "rb") as file:
-                st.download_button("Download Report", file, file_name=report_file)
-
-        except Exception as e:
-            st.error(f"Failed to generate report: {e}")
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", size=12)
+        pdf.cell(200, 10, txt="Credit Card Fraud Detection Report", ln=True, align='C')
+        pdf.multi_cell(0, 10, classification_report(y_test, y_pred))
+        pdf.cell(200, 10, txt=f"F1-Score: {f1:.3f}", ln=True)
+        pdf.cell(200, 10, txt=f"Accuracy: {accuracy:.3f}", ln=True)
+        pdf.cell(200, 10, txt=f"MCC: {mcc:.3f}", ln=True)
+        report_file = "fraud_detection_report.pdf"
+        pdf.output(report_file)
+        with open(report_file, "rb") as file:
+            st.download_button("Download Report", file, file_name=report_file)
 
     st.button("Generate Report", on_click=generate_report)
 
-# Feedback Section
+# Feedback
 if page_selection == "Feedback":
     st.header("💬 Feedback")
     feedback = st.text_area("Provide your feedback here:")
