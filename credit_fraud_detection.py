@@ -120,7 +120,7 @@ if df is not None:
             len(df) - df['Class'].sum()
         ))
 
-      # Exploratory Data Analysis Page
+    # Exploratory Data Analysis Page
     elif page_selection == "Exploratory Data Analysis":
         st.header("📊 Exploratory Data Analysis")
 
@@ -357,107 +357,107 @@ if df is not None:
         except Exception as e:
             st.error(f"Error loading model '{model_filename}': {e}")
 
-# Model Evaluation
-if page_selection == "Model Evaluation":
-    st.header("🧠 Model Evaluation")
+    # Model Evaluation Page
+    elif page_selection == "Model Evaluation":
+        st.header("🧠 Model Evaluation")
 
-    st.markdown("""
-        **Comprehensive Model Assessment:**
-        This section provides an in-depth evaluation of various machine learning models used for fraud detection. By analyzing key performance metrics and visualizations, executives can understand each model's effectiveness and suitability for deployment.
-    """)
+        st.markdown("""
+            **Comprehensive Model Assessment:**
+            This section provides an in-depth evaluation of various machine learning models used for fraud detection. By analyzing key performance metrics and visualizations, executives can understand each model's effectiveness and suitability for deployment.
+        """)
 
-    # Models supporting feature importance plus additional models
-    all_models = {
-        'Logistic Regression': 'logistic_regression.pkl',
-        'Random Forest': 'random_forest.pkl',
-        'Extra Trees': 'extra_trees.pkl',
-        'Support Vector Machine': 'svm.pkl',
-        'k-Nearest Neighbors': 'knn.pkl'
-    }
+        # Models supporting feature importance plus additional models
+        all_models = {
+            'Logistic Regression': 'logistic_regression.pkl',
+            'Random Forest': 'random_forest.pkl',
+            'Extra Trees': 'extra_trees.pkl',
+            'Support Vector Machine': 'svm.pkl',
+            'k-Nearest Neighbors': 'knn.pkl'
+        }
 
-    classifier = st.selectbox("Select Model for Evaluation:", list(all_models.keys()))
-    model_file = all_models[classifier]
-    model_path = os.path.join(os.path.dirname(__file__), model_file)
+        classifier = st.selectbox("Select Model for Evaluation:", list(all_models.keys()))
+        model_file = all_models[classifier]
+        model_path = os.path.join(os.path.dirname(__file__), model_file)
 
-    try:
-        model = joblib.load(model_path)
-    except Exception as e:
-        st.error(f"Error loading model: {e}")
-        st.stop()
+        try:
+            model = joblib.load(model_path)
+        except Exception as e:
+            st.error(f"Error loading model: {e}")
+            st.stop()
 
-    # Test set size slider
-    test_size = st.slider('Test Set Size (%)', min_value=10, max_value=50, value=30, step=5)
-    test_size_fraction = test_size / 100
+        # Test set size slider
+        test_size = st.slider('Test Set Size (%)', min_value=10, max_value=50, value=30, step=5)
+        test_size_fraction = test_size / 100
 
-    X = df.drop(columns=['Class'])
-    y = df['Class']
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size_fraction, random_state=42, stratify=y
-    )
+        X = df.drop(columns=['Class'])
+        y = df['Class']
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=test_size_fraction, random_state=42, stratify=y
+        )
 
-    # Make predictions
-    y_pred = model.predict(X_test)
+        # Make predictions
+        y_pred = model.predict(X_test)
 
-    # Confusion Matrix
-    st.subheader("🔢 Confusion Matrix")
-    cm = confusion_matrix(y_test, y_pred)
-    fig_cm = plt.figure(figsize=(6, 4))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='YlOrBr', xticklabels=['Valid', 'Fraud'], yticklabels=['Valid', 'Fraud'])
-    plt.xlabel("Predicted")
-    plt.ylabel("Actual")
-    plt.title(f"Confusion Matrix for {classifier}")
-    st.pyplot(fig_cm)
+        # Confusion Matrix
+        st.subheader("🔢 Confusion Matrix")
+        cm = confusion_matrix(y_test, y_pred)
+        fig_cm = plt.figure(figsize=(6, 4))
+        sns.heatmap(cm, annot=True, fmt='d', cmap='YlOrBr', xticklabels=['Valid', 'Fraud'], yticklabels=['Valid', 'Fraud'])
+        plt.xlabel("Predicted")
+        plt.ylabel("Actual")
+        plt.title(f"Confusion Matrix for {classifier}")
+        st.pyplot(fig_cm)
 
-    # Classification Report
-    st.subheader("📋 Classification Report")
-    report = classification_report(y_test, y_pred, output_dict=True)
-    report_df = pd.DataFrame(report).transpose()
-    st.dataframe(report_df.style.background_gradient(cmap='coolwarm'))
+        # Classification Report
+        st.subheader("📋 Classification Report")
+        report = classification_report(y_test, y_pred, output_dict=True)
+        report_df = pd.DataFrame(report).transpose()
+        st.dataframe(report_df.style.background_gradient(cmap='coolwarm'))
 
-    # Performance Metrics
-    f1 = f1_score(y_test, y_pred)
-    accuracy = accuracy_score(y_test, y_pred)
-    mcc = matthews_corrcoef(y_test, y_pred)
+        # Performance Metrics
+        f1 = f1_score(y_test, y_pred)
+        accuracy = accuracy_score(y_test, y_pred)
+        mcc = matthews_corrcoef(y_test, y_pred)
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("🔹 F1-Score", f"{f1:.4f}")
-    col2.metric("🔹 Accuracy", f"{accuracy:.4f}")
-    col3.metric("🔹 Matthews Corr. Coef.", f"{mcc:.4f}")
+        col1, col2, col3 = st.columns(3)
+        col1.metric("🔹 F1-Score", f"{f1:.4f}")
+        col2.metric("🔹 Accuracy", f"{accuracy:.4f}")
+        col3.metric("🔹 Matthews Corr. Coef.", f"{mcc:.4f}")
 
-    # ROC Curve
-    if hasattr(model, "predict_proba"):
-        y_proba = model.predict_proba(X_test)[:, 1]
-    else:
-        y_proba = model.decision_function(X_test)
-        y_proba = (y_proba - y_proba.min()) / (y_proba.max() - y_proba.min())  # Normalize
+        # ROC Curve
+        if hasattr(model, "predict_proba"):
+            y_proba = model.predict_proba(X_test)[:, 1]
+        else:
+            y_proba = model.decision_function(X_test)
+            y_proba = (y_proba - y_proba.min()) / (y_proba.max() - y_proba.min())  # Normalize
 
-    from sklearn.metrics import roc_curve, auc
+        from sklearn.metrics import roc_curve, auc
 
-    fpr, tpr, thresholds = roc_curve(y_test, y_proba)
-    roc_auc = auc(fpr, tpr)
+        fpr, tpr, thresholds = roc_curve(y_test, y_proba)
+        roc_auc = auc(fpr, tpr)
 
-    st.subheader("📈 Receiver Operating Characteristic (ROC) Curve")
-    fig_roc = px.area(
-        x=fpr, y=tpr,
-        title=f"ROC Curve (AUC = {roc_auc:.4f}) for {classifier}",
-        labels={'x': 'False Positive Rate', 'y': 'True Positive Rate'},
-        width=700, height=500
-    )
-    fig_roc.add_shape(
-        type='line', line=dict(dash='dash'),
-        x0=0, x1=1, y0=0, y1=1
-    )
-    fig_roc.update_yaxes(scale=1.05)
-    fig_roc.update_xaxes(scale=1.05)
-    st.plotly_chart(fig_roc, use_container_width=True)
+        st.subheader("📈 Receiver Operating Characteristic (ROC) Curve")
+        fig_roc = px.area(
+            x=fpr, y=tpr,
+            title=f"ROC Curve (AUC = {roc_auc:.4f}) for {classifier}",
+            labels={'x': 'False Positive Rate', 'y': 'True Positive Rate'},
+            width=700, height=500
+        )
+        fig_roc.add_shape(
+            type='line', line=dict(dash='dash'),
+            x0=0, x1=1, y0=0, y1=1
+        )
+        fig_roc.update_yaxes(scale=1.05)
+        fig_roc.update_xaxes(scale=1.05)
+        st.plotly_chart(fig_roc, use_container_width=True)
 
-    st.markdown("""
-    **Comprehensive Metrics:**
-    - **F1-Score:** Balances precision and recall, providing a single metric that considers both false positives and false negatives.
-    - **Accuracy:** Measures the proportion of correct predictions, though it can be misleading in imbalanced datasets.
-    - **Matthews Correlation Coefficient (MCC):** Accounts for true and false positives and negatives, offering a balanced measure even in imbalanced scenarios.
-    - **ROC-AUC:** Evaluates the trade-off between true positive rate and false positive rate, with higher values indicating better model performance.
-    """)
+        st.markdown("""
+        **Comprehensive Metrics:**
+        - **F1-Score:** Balances precision and recall, providing a single metric that considers both false positives and false negatives.
+        - **Accuracy:** Measures the proportion of correct predictions, though it can be misleading in imbalanced datasets.
+        - **Matthews Correlation Coefficient (MCC):** Accounts for true and false positives and negatives, offering a balanced measure even in imbalanced scenarios.
+        - **ROC-AUC:** Evaluates the trade-off between true positive rate and false positive rate, with higher values indicating better model performance.
+        """)
 
     # Simulator Page
     elif page_selection == "Simulator":
@@ -505,7 +505,7 @@ if page_selection == "Model Evaluation":
         except Exception as e:
             st.error(f"Error loading model '{default_model_filename}': {e}")
 
- # Download Report Page
+    # Download Report Page
     elif page_selection == "Download Report":
         st.header("📄 Download Report")
         st.markdown("""
