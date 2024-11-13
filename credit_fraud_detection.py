@@ -409,12 +409,6 @@ if df is not None:
         plt.title(f"Confusion Matrix for {classifier}")
         st.pyplot(fig_cm)
 
-        # Classification Report
-        st.subheader("📋 Classification Report")
-        report = classification_report(y_test, y_pred, output_dict=True)
-        report_df = pd.DataFrame(report).transpose()
-        st.dataframe(report_df.style.background_gradient(cmap='coolwarm'))
-
         # Performance Metrics
         f1 = f1_score(y_test, y_pred)
         accuracy = accuracy_score(y_test, y_pred)
