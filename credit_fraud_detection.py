@@ -18,8 +18,12 @@ from sklearn.metrics import (
     f1_score,
     accuracy_score,
     roc_curve,
-    auc
+    auc,
+    precision_score,
+    recall_score,
+    fbeta_score
 )
+import tempfile
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings("ignore")
@@ -389,11 +393,18 @@ if page_selection == "Model Evaluation":
         f1 = f1_score(y_test, y_pred)
         accuracy = accuracy_score(y_test, y_pred)
         mcc = matthews_corrcoef(y_test, y_pred)
+        precision = precision_score(y_test, y_pred)
+        recall = recall_score(y_test, y_pred)
+        f2 = fbeta_score(y_test, y_pred, beta=2)
 
         col1, col2, col3 = st.columns(3)
-        col1.metric("🔹 F1-Score", f"{f1:.4f}")
-        col2.metric("🔹 Accuracy", f"{accuracy:.4f}")
+        col1.metric("🔹 Accuracy", f"{accuracy:.4f}")
+        col2.metric("🔹 F1-Score", f"{f1:.4f}")
         col3.metric("🔹 Matthews Corr. Coef.", f"{mcc:.4f}")
+        col4, col5 = st.columns(2)
+        col4.metric("🔹 Precision", f"{precision:.4f}")
+        col5.metric("🔹 Recall", f"{recall:.4f}")
+        st.metric("🔹 F2-Score", f"{f2:.4f}")
 
         # ROC Curve - Only for models that support it
         st.subheader("📈 Receiver Operating Characteristic (ROC) Curve")
@@ -425,12 +436,24 @@ if page_selection == "Model Evaluation":
         else:
             st.info("ROC Curve is not available for the selected model.")
 
+        # Additional Evaluation Metrics
+        st.subheader("📈 Additional Evaluation Metrics")
+        st.markdown("""
+        **Precision:** Measures the proportion of positive identifications that were actually correct. High precision indicates a low false positive rate.
+
+        **Recall (Sensitivity):** Measures the proportion of actual positives that were identified correctly. High recall indicates a low false negative rate.
+
+        **F2-Score:** Places more emphasis on recall than precision, useful when false negatives are more critical than false positives.
+        """)
+
         st.markdown("""
         **Comprehensive Metrics:**
-        - **F1-Score:** Balances precision and recall, providing a single metric that considers both false positives and false negatives.
-        - **Accuracy:** Measures the proportion of correct predictions, though it can be misleading in imbalanced datasets.
-        - **Matthews Correlation Coefficient (MCC):** Accounts for true and false positives and negatives, offering a balanced measure even in imbalanced scenarios.
-        - **ROC-AUC:** Evaluates the trade-off between true positive rate and false positive rate, with higher values indicating better model performance.
+        - **Accuracy:** Proportion of correct predictions.
+        - **F1-Score:** Harmonic mean of precision and recall.
+        - **Matthews Correlation Coefficient (MCC):** Balanced measure even if classes are of very different sizes.
+        - **Precision:** Proportion of positive identifications that were actually correct.
+        - **Recall:** Proportion of actual positives that were identified correctly.
+        - **F2-Score:** Focuses more on recall than precision.
         """)
 
         # Personalized and Cool Report Enhancements
@@ -446,8 +469,33 @@ if page_selection == "Model Evaluation":
         - **Accuracy:** {accuracy:.4f}
         - **F1-Score:** {f1:.4f}
         - **Matthews Corr. Coef.:** {mcc:.4f}
+        - **Precision:** {precision:.4f}
+        - **Recall:** {recall:.4f}
+        - **F2-Score:** {f2:.4f}
         - **ROC-AUC:** {roc_auc:.4f} (if applicable)
         """)
+
+        # Include more relevant number data and dynamic comments
+        st.markdown("""
+        **Dynamic Insights:**
+        - The **Accuracy** of {model_accuracy}% indicates that the model correctly predicted {correct_preds} out of {total_preds} transactions.
+        - With an **F1-Score** of {model_f1}, the model balances precision and recall effectively.
+        - The **Matthews Correlation Coefficient (MCC)** of {model_mcc} suggests a strong correlation between the observed and predicted classifications.
+        - **Precision** and **Recall** scores of {model_precision} and {model_recall} respectively highlight the model's capability to minimize false positives and false negatives.
+        - An **F2-Score** of {model_f2} emphasizes the model's focus on recall, ensuring that most fraudulent transactions are detected.
+        - The **ROC-AUC** of {model_roc_auc} demonstrates the model's ability to distinguish between fraudulent and valid transactions.
+        """.format(
+            model_accuracy=accuracy * 100,
+            correct_preds=int(accuracy * len(y_test)),
+            total_preds=len(y_test),
+            model_f1=f1,
+            model_mcc=mcc,
+            model_precision=precision,
+            model_recall=recall,
+            model_f2=f2,
+            model_roc_auc=roc_auc if hasattr(model, "predict_proba") or hasattr(model, "decision_function") else "N/A"
+        ))
+
     else:
         st.error("Failed to load the selected model.")
 
@@ -571,7 +619,7 @@ if page_selection == "Download Report":
                 pdf.cell(0, 10, "Model Evaluation", ln=True)
                 pdf.set_font("Arial", '', 12)
                 model_evaluation_summary = (
-                    "- **Performance Metrics:** Models are evaluated based on F1-Score, Accuracy, Matthews Correlation Coefficient (MCC), and ROC-AUC.\n"
+                    "- **Performance Metrics:** Models are evaluated based on Accuracy, F1-Score, Matthews Correlation Coefficient (MCC), Precision, Recall, and F2-Score.\n"
                     "- **ROC Curve Analysis:** The ROC-AUC provides insights into the trade-off between true positive and false positive rates, indicating model effectiveness.\n"
                     "- **Personalized Metrics:** Detailed performance metrics tailored to the specific model and dataset configuration offer a clear understanding of model strengths and weaknesses."
                 )
@@ -580,6 +628,69 @@ if page_selection == "Download Report":
 
                 # Save the PDF temporarily
                 report_path = "fraud_detection_report.pdf"
+
+                # Adding Visualizations to PDF
+                # Correlation Heatmap
+                fig_corr, ax_corr = plt.subplots(figsize=(10, 8))
+                sns.heatmap(df.corr(), cmap='YlOrBr', ax=ax_corr)
+                plt.title('Correlation Heatmap of Features')
+                plt.tight_layout()
+                corr_image = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
+                plt.savefig(corr_image.name, dpi=300)
+                plt.close(fig_corr)
+                pdf.add_page()
+                pdf.set_font("Arial", 'B', 12)
+                pdf.cell(0, 10, "Correlation Heatmap of Features", ln=True, align='C')
+                pdf.image(corr_image.name, x=10, y=20, w=190)
+                os.unlink(corr_image.name)  # Delete the temporary file
+                pdf.ln(100)  # Adjust as per image size
+
+                # Confusion Matrix
+                fig_cm, ax_cm = plt.subplots(figsize=(6, 4))
+                sns.heatmap(confusion_matrix(y_test, y_pred), annot=True, fmt='d', cmap='YlOrBr',
+                            xticklabels=['Valid', 'Fraud'], yticklabels=['Valid', 'Fraud'], ax=ax_cm)
+                plt.xlabel("Predicted")
+                plt.ylabel("Actual")
+                plt.title(f"Confusion Matrix for {classifier}")
+                cm_image = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
+                plt.savefig(cm_image.name, dpi=300)
+                plt.close(fig_cm)
+                pdf.add_page()
+                pdf.set_font("Arial", 'B', 12)
+                pdf.cell(0, 10, f"Confusion Matrix for {classifier}", ln=True, align='C')
+                pdf.image(cm_image.name, x=10, y=20, w=190)
+                os.unlink(cm_image.name)  # Delete the temporary file
+                pdf.ln(100)  # Adjust as per image size
+
+                # ROC Curve (if applicable)
+                if hasattr(model, "predict_proba") or hasattr(model, "decision_function"):
+                    fig_roc, ax_roc = plt.subplots(figsize=(6, 4))
+                    if hasattr(model, "predict_proba"):
+                        y_proba = model.predict_proba(X_test)[:, 1]
+                    else:
+                        y_proba = model.decision_function(X_test)
+                        y_proba = (y_proba - y_proba.min()) / (y_proba.max() - y_proba.min())
+
+                    fpr, tpr, _ = roc_curve(y_test, y_proba)
+                    roc_auc = auc(fpr, tpr)
+                    sns.lineplot(x=fpr, y=tpr, label=f'ROC Curve (AUC = {roc_auc:.4f})', ax=ax_roc)
+                    sns.lineplot([0, 1], [0, 1], linestyle='--', color='grey', ax=ax_roc)
+                    ax_roc.set_xlabel('False Positive Rate')
+                    ax_roc.set_ylabel('True Positive Rate')
+                    ax_roc.set_title(f"ROC Curve for {classifier}")
+                    ax_roc.legend(loc='lower right')
+                    plt.tight_layout()
+                    roc_image = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
+                    plt.savefig(roc_image.name, dpi=300)
+                    plt.close(fig_roc)
+                    pdf.add_page()
+                    pdf.set_font("Arial", 'B', 12)
+                    pdf.cell(0, 10, f"ROC Curve for {classifier}", ln=True, align='C')
+                    pdf.image(roc_image.name, x=10, y=20, w=190)
+                    os.unlink(roc_image.name)  # Delete the temporary file
+                    pdf.ln(100)  # Adjust as per image size
+
+                # Finalize and Save the PDF
                 pdf.output(report_path)
 
                 # Provide download button
@@ -617,6 +728,7 @@ if page_selection == "Feedback":
             # Placeholder for feedback storage (e.g., database or email)
             # Implement actual storage mechanism as needed
             st.success("Thank you for your feedback!")
+
 
 
 
