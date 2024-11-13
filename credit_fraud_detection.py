@@ -56,12 +56,61 @@ page_selection = st.sidebar.radio("Go to", [
     "Feedback"
 ])
 
-# Load the dataset
+# Function to load data with caching
 @st.cache_data
 def load_data():
-    df = pd.read_csv('creditcard.csv')
-    return df
+    try:
+        # Load the dataset from the same directory as the script
+        script_dir = Path(__file__).parent
+        data_path = script_dir / 'creditcard.csv'
+        
+        # Check if the file exists
+        if not data_path.exists():
+            st.error(f"The file 'creditcard.csv' was not found in the directory: {script_dir}")
+            # Optional: List files in the directory for debugging
+            files = list(script_dir.iterdir())
+            st.info("Files in the script directory:")
+            for file in files:
+                st.write(f"- {file.name}")
+            return None
+        
+        # Load the dataset
+        df = pd.read_csv(data_path)
+        return df
+    except Exception as e:
+        st.error(f"Error loading data: {e}")
+        return None
 
+# Function to load models with caching
+@st.cache_resource
+def load_model(model_filename):
+    try:
+        # Load the model from the same directory as the script
+        script_dir = Path(__file__).parent
+        model_path = script_dir / model_filename
+        
+        # Check if the model file exists
+        if not model_path.exists():
+            st.error(f"Model file '{model_filename}' not found in the directory: {script_dir}")
+            # Optional: List files in the directory for debugging
+            files = list(script_dir.iterdir())
+            st.info("Files in the script directory:")
+            for file in files:
+                st.write(f"- {file.name}")
+            return None
+        
+        # Load the model
+        model = joblib.load(model_path)
+        return model
+    except Exception as e:
+        st.error(f"Error loading model '{model_filename}': {e}")
+        return None
+
+# Initialize session state for model evaluation results
+if 'model_evaluation' not in st.session_state:
+    st.session_state['model_evaluation'] = {}
+
+# Load the dataset
 df = load_data()
 
 # Ensure that the dataset is loaded before proceeding
@@ -859,4 +908,3 @@ if df is not None:
 
     else:
         st.error("Page not found.")
-
