@@ -44,7 +44,7 @@ page_selection = st.sidebar.radio("Go to", [
     "Exploratory Data Analysis",
     "Feature Importance",
     "Model Evaluation",
-    "Real-Time Prediction",
+    "Simulator",
     "Download Report",
     "Feedback"
 ])
@@ -152,7 +152,7 @@ if page_selection == "Exploratory Data Analysis":
         y='Amount',
         color='Class',
         labels={
-            'Time': 'Seconds Since First Transaction',
+            'Time': 'Time',
             'Amount': 'Transaction Amount ($)',
             'Class': 'Transaction Class'
         },
@@ -339,12 +339,11 @@ if page_selection == "Model Evaluation":
     This section provides an in-depth evaluation of various machine learning models used for fraud detection. By analyzing key performance metrics and visualizations, executives can understand each model's effectiveness and suitability for deployment.
     """)
 
-    # Dictionary of all available models for evaluation
+    # Dictionary of all available models for evaluation (excluding SVM)
     all_models = {
         'Logistic Regression': 'logistic_regression.pkl',
         'Random Forest': 'random_forest.pkl',
         'Extra Trees': 'extra_trees.pkl',
-        'Support Vector Machine': 'svm.pkl',
         'k-Nearest Neighbors': 'knn.pkl'
     }
 
@@ -475,15 +474,15 @@ if page_selection == "Model Evaluation":
         - **ROC-AUC:** {roc_auc:.4f} (if applicable)
         """)
 
-        # Include more relevant number data and dynamic comments
+        # Dynamic Insights with Relevant Number Data
         st.markdown("""
         **Dynamic Insights:**
-        - The **Accuracy** of {model_accuracy}% indicates that the model correctly predicted {correct_preds} out of {total_preds} transactions.
-        - With an **F1-Score** of {model_f1}, the model balances precision and recall effectively.
-        - The **Matthews Correlation Coefficient (MCC)** of {model_mcc} suggests a strong correlation between the observed and predicted classifications.
-        - **Precision** and **Recall** scores of {model_precision} and {model_recall} respectively highlight the model's capability to minimize false positives and false negatives.
-        - An **F2-Score** of {model_f2} emphasizes the model's focus on recall, ensuring that most fraudulent transactions are detected.
-        - The **ROC-AUC** of {model_roc_auc} demonstrates the model's ability to distinguish between fraudulent and valid transactions.
+        - The **Accuracy** of {model_accuracy:.2f}% indicates that the model correctly predicted {correct_preds} out of {total_preds} transactions.
+        - With an **F1-Score** of {model_f1:.4f}, the model balances precision and recall effectively.
+        - The **Matthews Correlation Coefficient (MCC)** of {model_mcc:.4f} suggests a strong correlation between the observed and predicted classifications.
+        - **Precision** and **Recall** scores of {model_precision:.4f} and {model_recall:.4f} respectively highlight the model's capability to minimize false positives and false negatives.
+        - An **F2-Score** of {model_f2:.4f} emphasizes the model's focus on recall, ensuring that most fraudulent transactions are detected.
+        - The **ROC-AUC** of {model_roc_auc:.4f} demonstrates the model's ability to distinguish between fraudulent and valid transactions.
         """.format(
             model_accuracy=accuracy * 100,
             correct_preds=int(accuracy * len(y_test)),
@@ -499,9 +498,9 @@ if page_selection == "Model Evaluation":
     else:
         st.error("Failed to load the selected model.")
 
-# Real-Time Prediction Page
-if page_selection == "Real-Time Prediction":
-    st.header("🚀 Real-Time Prediction")
+# Simulator Page
+if page_selection == "Simulator":
+    st.header("🚀 Simulator")
     st.markdown("""
     **Simulate and Predict Fraudulent Transactions:**
     Enter transaction details to receive an immediate prediction on whether the transaction is fraudulent.
@@ -509,9 +508,9 @@ if page_selection == "Real-Time Prediction":
 
     # Default model for real-time prediction
     default_model_filename = 'random_forest.pkl'
-    model_rt = load_model(default_model_filename)
+    model_sim = load_model(default_model_filename)
 
-    if model_rt:
+    if model_sim:
         # Input transaction details
         st.subheader("🔍 Enter Transaction Details")
         col1, col2 = st.columns(2)
@@ -522,26 +521,26 @@ if page_selection == "Real-Time Prediction":
                 V_features[f'V{i}'] = st.number_input(f'V{i}', value=0.0, format="%.5f", key=f'V{i}')
 
         with col2:
-            Time = st.number_input('Time (seconds since first transaction)', min_value=0, value=0, step=1, key='Time')
+            Time = st.number_input('Time', min_value=0, value=0, step=1, key='Time')
             Amount = st.number_input('Transaction Amount ($)', min_value=0.0, value=0.0, format="%.2f", key='Amount')
 
         # Predict button
-        if st.button("Predict"):
+        if st.button("Simulate"):
             input_data = pd.DataFrame({
                 **V_features,
                 'Time': [Time],
                 'Amount': [Amount]
             })
 
-            prediction = model_rt.predict(input_data)[0]
-            prediction_proba = model_rt.predict_proba(input_data)[0][1]
+            prediction = model_sim.predict(input_data)[0]
+            prediction_proba = model_sim.predict_proba(input_data)[0][1]
 
             if prediction == 1:
                 st.error(f"⚠️ **Fraudulent Transaction Detected!** Probability: {prediction_proba:.2%}")
             else:
                 st.success(f"✅ **Valid Transaction.** Probability of Fraud: {prediction_proba:.2%}")
     else:
-        st.error("Real-Time Prediction model could not be loaded.")
+        st.error("Simulator model could not be loaded.")
 
 # Download Report Page
 if page_selection == "Download Report":
@@ -625,9 +624,6 @@ if page_selection == "Download Report":
                 )
                 pdf.multi_cell(0, 10, model_evaluation_summary)
                 pdf.ln(5)
-
-                # Save the PDF temporarily
-                report_path = "fraud_detection_report.pdf"
 
                 # Adding Visualizations to PDF
                 # Correlation Heatmap
@@ -728,8 +724,6 @@ if page_selection == "Feedback":
             # Placeholder for feedback storage (e.g., database or email)
             # Implement actual storage mechanism as needed
             st.success("Thank you for your feedback!")
-
-
 
 
 
