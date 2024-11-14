@@ -357,144 +357,121 @@ if df is not None:
         except Exception as e:
             st.error(f"Error loading model '{model_filename}': {e}")
 
-# Model Evaluation Page
-elif page_selection == "Model Evaluation":
-    st.header("🧠 Model Evaluation")
+    # Model Evaluation Page
+    elif page_selection == "Model Evaluation":
+        st.header("🧠 Model Evaluation")
 
-    st.markdown("""
-        **Comprehensive Model Assessment:**
-        This section provides an in-depth evaluation of various machine learning models used for fraud detection. By analyzing key performance metrics and visualizations, executives can understand each model's effectiveness and suitability for deployment.
-    """)
+        st.markdown("""
+            **Comprehensive Model Assessment:**
+            This section provides an in-depth evaluation of various machine learning models used for fraud detection. By analyzing key performance metrics and visualizations, executives can understand each model's effectiveness and suitability for deployment.
+        """)
 
-    # Models supporting feature importance plus additional models
-    all_models = {
-        'Logistic Regression': 'logistic_regression.pkl',
-        'Random Forest': 'random_forest.pkl',
-        'Extra Trees': 'extra_trees.pkl',
-        'k-Nearest Neighbors': 'knn.pkl'
-    }
+        # Models supporting feature importance plus additional models
+        all_models = {
+            'Logistic Regression': 'logistic_regression.pkl',
+            'Random Forest': 'random_forest.pkl',
+            'Extra Trees': 'extra_trees.pkl',
+            'k-Nearest Neighbors': 'knn.pkl'
+        }
 
-    classifier = st.selectbox("Select Model for Evaluation:", list(all_models.keys()))
-    model_file = all_models[classifier]
-    model_path = os.path.join(os.path.dirname(__file__), model_file)
+        classifier = st.selectbox("Select Model for Evaluation:", list(all_models.keys()))
+        model_file = all_models[classifier]
+        model_path = os.path.join(os.path.dirname(__file__), model_file)
 
-    try:
-        model = joblib.load(model_path)
-    except Exception as e:
-        st.error(f"Error loading model: {e}")
-        st.stop()
+        try:
+            model = joblib.load(model_path)
+        except Exception as e:
+            st.error(f"Error loading model: {e}")
+            st.stop()
 
-    # Test set size slider
-    test_size = st.slider('Test Set Size (%)', min_value=10, max_value=50, value=30, step=5)
-    test_size_fraction = test_size / 100
+        # Test set size slider
+        test_size = st.slider('Test Set Size (%)', min_value=10, max_value=50, value=30, step=5)
+        test_size_fraction = test_size / 100
 
-    X = df.drop(columns=['Class'])
-    y = df['Class']
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size_fraction, random_state=42, stratify=y
-    )
+        X = df.drop(columns=['Class'])
+        y = df['Class']
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=test_size_fraction, random_state=42, stratify=y
+        )
 
-    # Make predictions
-    y_pred = model.predict(X_test)
+        # Make predictions
+        y_pred = model.predict(X_test)
 
-    # Confusion Matrix
-    st.subheader("🔢 Confusion Matrix")
-    cm = confusion_matrix(y_test, y_pred)
-    fig_cm = plt.figure(figsize=(6, 4))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='YlOrBr',
-                xticklabels=['Valid', 'Fraud'], yticklabels=['Valid', 'Fraud'])
-    plt.xlabel("Predicted")
-    plt.ylabel("Actual")
-    plt.title(f"Confusion Matrix for {classifier}")
-    st.pyplot(fig_cm)
+        # Confusion Matrix
+        st.subheader("🔢 Confusion Matrix")
+        cm = confusion_matrix(y_test, y_pred)
+        fig_cm = plt.figure(figsize=(6, 4))
+        sns.heatmap(cm, annot=True, fmt='d', cmap='YlOrBr',
+                    xticklabels=['Valid', 'Fraud'], yticklabels=['Valid', 'Fraud'])
+        plt.xlabel("Predicted")
+        plt.ylabel("Actual")
+        plt.title(f"Confusion Matrix for {classifier}")
+        st.pyplot(fig_cm)
 
-    # Performance Metrics
-    f1 = f1_score(y_test, y_pred)
-    accuracy = accuracy_score(y_test, y_pred)
-    mcc = matthews_corrcoef(y_test, y_pred)
-    precision = precision_score(y_test, y_pred)
-    recall = recall_score(y_test, y_pred)
-    f2 = fbeta_score(y_test, y_pred, beta=2)
+        # Performance Metrics
+        f1 = f1_score(y_test, y_pred)
+        accuracy = accuracy_score(y_test, y_pred)
+        mcc = matthews_corrcoef(y_test, y_pred)
+        precision = precision_score(y_test, y_pred)
+        recall = recall_score(y_test, y_pred)
+        f2 = fbeta_score(y_test, y_pred, beta=2)
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("🔹 F1-Score", f"{f1:.4f}")
-    col2.metric("🔹 Precision", f"{precision:.4f}")
-    col3.metric("🔹 Recall", f"{recall:.4f}")
+        col1, col2, col3 = st.columns(3)
+        col1.metric("🔹 F1-Score", f"{f1:.4f}")
+        col2.metric("🔹 Precision", f"{precision:.4f}")
+        col3.metric("🔹 Recall", f"{recall:.4f}")
 
-    col4, col5, col6 = st.columns(3)
-    col4.metric("🔹 Accuracy", f"{accuracy:.4f}")
-    col5.metric("🔹 F2-Score", f"{f2:.4f}")
-    col6.metric("🔹 Matthews Corr. Coef.", f"{mcc:.4f}")
+        col4, col5, col6 = st.columns(3)
+        col4.metric("🔹 Accuracy", f"{accuracy:.4f}")
+        col5.metric("🔹 F2-Score", f"{f2:.4f}")
+        col6.metric("🔹 Matthews Corr. Coef.", f"{mcc:.4f}")
 
-    # Precision-Recall Curve
-    if hasattr(model, "predict_proba"):
-        y_proba = model.predict_proba(X_test)[:, 1]
-    else:
-        y_proba = model.decision_function(X_test)
-        y_proba = (y_proba - y_proba.min()) / (y_proba.max() - y_proba.min())  # Normalize
+        # Precision-Recall Curve
+        if hasattr(model, "predict_proba"):
+            y_proba = model.predict_proba(X_test)[:, 1]
+        else:
+            y_proba = model.decision_function(X_test)
+            y_proba = (y_proba - y_proba.min()) / (y_proba.max() - y_proba.min())  # Normalize
 
-    from sklearn.metrics import precision_recall_curve, average_precision_score
+        from sklearn.metrics import precision_recall_curve, average_precision_score
 
-    precision_vals, recall_vals, thresholds = precision_recall_curve(y_test, y_proba)
-    average_precision = average_precision_score(y_test, y_proba)
+        precision_vals, recall_vals, thresholds = precision_recall_curve(y_test, y_proba)
+        average_precision = average_precision_score(y_test, y_proba)
 
-    st.subheader("📈 Precision-Recall Curve")
-    fig_pr = px.area(
-        x=recall_vals, y=precision_vals,
-        title=f"Precision-Recall Curve (AP = {average_precision:.4f}) for {classifier}",
-        labels={'x': 'Recall', 'y': 'Precision'},
-        width=700, height=500
-    )
-    fig_pr.add_shape(
-        type='line', line=dict(dash='dash'),
-        x0=0, x1=1, y0=1, y1=0
-    )
-    fig_pr.update_yaxes(range=[0, 1], constrain='domain')
-    fig_pr.update_xaxes(range=[0, 1], constrain='domain')
-    st.plotly_chart(fig_pr, use_container_width=True)
+        st.subheader("📈 Precision-Recall Curve")
+        fig_pr = px.area(
+            x=recall_vals, y=precision_vals,
+            title=f"Precision-Recall Curve (AP = {average_precision:.4f}) for {classifier}",
+            labels={'x': 'Recall', 'y': 'Precision'},
+            width=700, height=500
+        )
+        fig_pr.add_shape(
+            type='line', line=dict(dash='dash'),
+            x0=0, x1=1, y0=1, y1=0
+        )
+        fig_pr.update_yaxes(range=[0, 1], constrain='domain')
+        fig_pr.update_xaxes(range=[0, 1], constrain='domain')
+        st.plotly_chart(fig_pr, use_container_width=True)
 
-    # Threshold vs. F1 Score Plot
-    st.subheader("📉 Threshold vs. F1 Score")
-    f1_scores = []
-    thresholds = np.linspace(0, 1, 100)
-    for thresh in thresholds:
-        y_pred_thresh = (y_proba >= thresh).astype(int)
-        f1_scores.append(f1_score(y_test, y_pred_thresh))
-    fig_thresh = px.line(
-        x=thresholds, y=f1_scores,
-        labels={'x': 'Threshold', 'y': 'F1 Score'},
-        title='F1 Score vs. Decision Threshold'
-    )
-    st.plotly_chart(fig_thresh, use_container_width=True)
+        # Threshold vs. F1 Score Plot
+        st.subheader("📉 Threshold vs. F1 Score")
+        f1_scores = []
+        thresholds = np.linspace(0, 1, 100)
+        for thresh in thresholds:
+            y_pred_thresh = (y_proba >= thresh).astype(int)
+            f1_scores.append(f1_score(y_test, y_pred_thresh))
+        fig_thresh = px.line(
+            x=thresholds, y=f1_scores,
+            labels={'x': 'Threshold', 'y': 'F1 Score'},
+            title='F1 Score vs. Decision Threshold'
+        )
+        st.plotly_chart(fig_thresh, use_container_width=True)
 
-    st.markdown("""
-    **Insights:**
-    - **Precision-Recall Curve:** Illustrates the trade-off between precision and recall for different threshold settings. It's particularly useful for imbalanced datasets.
-    - **Threshold Analysis:** The F1 Score vs. Threshold plot helps in selecting an optimal decision threshold that balances precision and recall according to business needs.
-    """)
-
-    # Compute ROC-AUC
-    from sklearn.metrics import roc_auc_score
-    roc_auc = roc_auc_score(y_test, y_proba)
-
-    # Store evaluation data into session state
-    st.session_state['model_evaluation'] = {
-        'y_test': y_test,
-        'y_pred': y_pred,
-        'classifier': classifier,
-        'metrics': {
-            'f1_score': f1,
-            'accuracy': accuracy,
-            'mcc': mcc,
-            'precision': precision,
-            'recall': recall,
-            'f2_score': f2
-        },
-        'test_size': test_size,
-        'roc_auc': roc_auc,
-        'y_proba': y_proba
-    }
-
+        st.markdown("""
+        **Insights:**
+        - **Precision-Recall Curve:** Illustrates the trade-off between precision and recall for different threshold settings. It's particularly useful for imbalanced datasets.
+        - **Threshold Analysis:** The F1 Score vs. Threshold plot helps in selecting an optimal decision threshold that balances precision and recall according to business needs.
+        """)
 
     # Simulator Page
     elif page_selection == "Simulator":
@@ -673,7 +650,5 @@ elif page_selection == "Download Report":
                 # Implement actual storage mechanism as needed
                 st.success("Thank you for your feedback!")
 
-    else:
-        st.error("Page not found.")
     else:
         st.error("Page not found.")
