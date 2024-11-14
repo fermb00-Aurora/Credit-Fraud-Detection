@@ -2,8 +2,8 @@
 
 """
 Credit Card Fraud Detection Dashboard
-Author: [Your Name]
-Date: [Date]
+Author: Fernando Moreno Borrego
+Date: 14.11.2024
 Description:
 A Streamlit application for detecting fraudulent credit card transactions using machine learning models.
 """
