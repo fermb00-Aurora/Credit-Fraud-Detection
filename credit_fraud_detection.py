@@ -675,3 +675,5 @@ elif page_selection == "Download Report":
 
     else:
         st.error("Page not found.")
+    else:
+        st.error("Page not found.")
