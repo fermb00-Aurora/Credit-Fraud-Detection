@@ -751,25 +751,25 @@ elif page_selection == "Download Report":
                     st.error(f"Error generating report: {e}")
 
 
-    # Feedback Page
-    elif page_selection == "Feedback":
-        st.header("💬 Feedback")
-        st.markdown("""
-        **We Value Your Feedback:**
-        Help us improve the Credit Card Fraud Detection Dashboard by providing your valuable feedback and suggestions.
-        """)
+# Feedback Page
+elif page_selection == "Feedback":
+    st.header("💬 Feedback")
+    st.markdown("""
+    **We Value Your Feedback:**
+    Help us improve the Credit Card Fraud Detection Dashboard by providing your valuable feedback and suggestions.
+    """)
 
-        # Feedback input
-        feedback = st.text_area("Provide your feedback here:")
+    # Feedback input
+    feedback = st.text_area("Provide your feedback here:")
 
-        # Submit feedback button
-        if st.button("Submit Feedback"):
-            if feedback.strip() == "":
-                st.warning("Please enter your feedback before submitting.")
-            else:
-                # Placeholder for feedback storage (e.g., database or email)
-                # Implement actual storage mechanism as needed
-                st.success("Thank you for your feedback!")
+     # Submit feedback button
+     if st.button("Submit Feedback"):
+           if feedback.strip() == "":
+             st.warning("Please enter your feedback before submitting.")
+         else:
+             # Placeholder for feedback storage (e.g., database or email)
+             # Implement actual storage mechanism as needed
+             st.success("Thank you for your feedback!")
 
-    else:
-        st.error("Page not found.")
+ else:
+       st.error("Page not found.")
