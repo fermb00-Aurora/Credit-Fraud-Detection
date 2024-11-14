@@ -5,7 +5,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
-import plotly.graph_objects as go
 import numpy as np
 import warnings
 import streamlit as st
@@ -19,19 +18,15 @@ from sklearn.metrics import (
     matthews_corrcoef,
     f1_score,
     accuracy_score,
-    roc_curve,
-    auc,
-    precision_recall_curve,
-    average_precision_score,
     precision_score,
     recall_score,
     fbeta_score,
-    cohen_kappa_score,
-    roc_auc_score
+    precision_recall_curve,
+    average_precision_score,
 )
 import tempfile
-import base64
 from io import BytesIO
+import base64
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings("ignore")
@@ -444,8 +439,6 @@ if df is not None:
             y_proba = model.decision_function(X_test)
             y_proba = (y_proba - y_proba.min()) / (y_proba.max() - y_proba.min())  # Normalize
 
-        from sklearn.metrics import precision_recall_curve, average_precision_score
-
         precision_vals, recall_vals, thresholds = precision_recall_curve(y_test, y_proba)
         average_precision = average_precision_score(y_test, y_proba)
 
@@ -474,12 +467,12 @@ if df is not None:
         # Threshold vs. F1 Score Plot
         st.subheader("📉 Threshold vs. F1 Score")
         f1_scores = []
-        thresholds = np.linspace(0, 1, 100)
-        for thresh in thresholds:
+        thresholds_list = np.linspace(0, 1, 100)
+        for thresh in thresholds_list:
             y_pred_thresh = (y_proba >= thresh).astype(int)
             f1_scores.append(f1_score(y_test, y_pred_thresh))
         fig_thresh = px.line(
-            x=thresholds, y=f1_scores,
+            x=thresholds_list, y=f1_scores,
             labels={'x': 'Threshold', 'y': 'F1 Score'},
             title='F1 Score vs. Decision Threshold'
         )
@@ -527,6 +520,7 @@ if df is not None:
         if 'model_evaluation' in st.session_state and 'model' in st.session_state['model_evaluation']:
             model_sim = st.session_state['model_evaluation']['model']
             classifier = st.session_state['model_evaluation']['classifier']
+            X_test = st.session_state['model_evaluation']['X_test']
             st.info(f"Using the {classifier} model from Model Evaluation.")
         else:
             st.warning("Please run a model evaluation first to select a model for simulation.")
@@ -558,8 +552,9 @@ if df is not None:
                 prediction_proba = model_sim.predict_proba(input_data)[0][1]
             else:
                 prediction_proba = model_sim.decision_function(input_data)[0]
-                prediction_proba = (prediction_proba - model_sim.decision_function(X_test).min()) / \
-                                   (model_sim.decision_function(X_test).max() - model_sim.decision_function(X_test).min())
+                # Normalize the decision function output
+                df_scores = model_sim.decision_function(X_test)
+                prediction_proba = (prediction_proba - df_scores.min()) / (df_scores.max() - df_scores.min())
 
             if prediction == 1:
                 st.error(f"⚠️ **Fraudulent Transaction Detected!** Probability: {prediction_proba:.2%}")
@@ -607,7 +602,7 @@ if df is not None:
             pdf.cell(200, 10, txt=f"Recall: {eval_results['recall']:.4f}", ln=True)
             pdf.cell(200, 10, txt=f"F1-Score: {eval_results['f1']:.4f}", ln=True)
             pdf.cell(200, 10, txt=f"F2-Score: {eval_results['f2']:.4f}", ln=True)
-            pdf.cell(200, 10, txt=f"Matthews Correlation Coefficient (MCC): {eval_results['mcc']:.4f}", ln=True)
+            pdf.cell(200, 10, txt=f"Matthews Corr. Coefficient (MCC): {eval_results['mcc']:.4f}", ln=True)
 
             # Classification Report
             pdf.cell(200, 10, txt="Classification Report:", ln=True)
