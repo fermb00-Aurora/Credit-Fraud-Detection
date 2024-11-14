@@ -371,7 +371,6 @@ if df is not None:
             'Logistic Regression': 'logistic_regression.pkl',
             'Random Forest': 'random_forest.pkl',
             'Extra Trees': 'extra_trees.pkl',
-            'Support Vector Machine': 'svm.pkl',
             'k-Nearest Neighbors': 'knn.pkl'
         }
 
