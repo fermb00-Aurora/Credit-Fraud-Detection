@@ -560,25 +560,47 @@ if page_selection == "Download Report":
 
     st.button("Generate Report", on_click=generate_report)
 
-    # Feedback Page
-    elif page_selection == "Feedback":
-        st.header("💬 Feedback")
-        st.markdown("""
-        **We Value Your Feedback:**
-        Help us improve the Credit Card Fraud Detection Dashboard by providing your valuable feedback and suggestions.
-        """)
+# Simulator Page
+elif page_selection == "Simulator":
+    st.header("🚀 Simulator")
+    st.markdown("""
+        **Simulate and Predict Fraudulent Transactions:**
+        Enter transaction details to receive an immediate prediction on whether the transaction is fraudulent.
+    """)
 
-        # Feedback input
-        feedback = st.text_area("Provide your feedback here:")
+    # Default model for simulation
+    default_model_filename = 'random_forest.pkl'
+    model_sim = load_model(default_model_filename)
 
-        # Submit feedback button
-        if st.button("Submit Feedback"):
-            if feedback.strip() == "":
-                st.warning("Please enter your feedback before submitting.")
+    if model_sim:
+        # Input transaction details
+        st.subheader("🔍 Enter Transaction Details")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            V_features = {}
+            for i in range(1, 29):
+                V_features[f'V{i}'] = st.number_input(f'V{i}', value=0.0, format="%.5f", key=f'V{i}')
+
+        with col2:
+            Time = st.number_input('Time', min_value=0, value=0, step=1, key='Time')
+            Amount = st.number_input('Transaction Amount ($)', min_value=0.0, value=0.0, format="%.2f", key='Amount')
+
+        # Predict button
+        if st.button("Simulate"):
+            input_data = pd.DataFrame({
+                **V_features,
+                'Time': [Time],
+                'Amount': [Amount]
+            })
+
+            prediction = model_sim.predict(input_data)[0]
+            prediction_proba = model_sim.predict_proba(input_data)[0][1]
+
+            if prediction == 1:
+                st.error(f"⚠️ **Fraudulent Transaction Detected!** Probability: {prediction_proba:.2%}")
             else:
-                # Placeholder for feedback storage (e.g., database or email)
-                # Implement actual storage mechanism as needed
-                st.success("Thank you for your feedback!")
-
+                st.success(f"✅ **Valid Transaction.** Probability of Fraud: {prediction_proba:.2%}")
     else:
-        st.error("Page not found.")
+        st.error("Simulator model could not be loaded.")
+
