@@ -93,6 +93,11 @@ if df is not None:
     # Introduction Page
     if page_selection == "Introduction":
         st.header("📘 Executive Summary")
+
+        # Display the GIF from GitHub repository
+        gif_url = "https://raw.githubusercontent.com/fermb00-Aurora/Credit-Fraud-Detection/main/2fb9cae9fdb0110d8a57e9cc394f35dd.gif"
+        st.image(gif_url, caption="Credit Card Fraud Detection in Action", use_column_width=True)
+
         st.markdown("""
         **Objective:**  
         Empower financial executives with advanced tools to detect and analyze fraudulent credit card transactions. By leveraging sophisticated machine learning models, this platform provides actionable insights to mitigate financial losses and enhance security measures.
@@ -109,6 +114,7 @@ if df is not None:
         - **Operational Efficiency:** Streamlined analysis processes save time and resources, enabling focus on critical tasks.
         - **Strategic Decision-Making:** Data-driven insights inform policies and strategies to enhance security protocols and customer satisfaction.
         """)
+
 
     # Data Overview Page
     elif page_selection == "Data Overview":
