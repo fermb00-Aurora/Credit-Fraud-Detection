@@ -357,205 +357,220 @@ if df is not None:
         except Exception as e:
             st.error(f"Error loading model '{model_filename}': {e}")
 
-# Model Evaluation Page
-elif page_selection == "Model Evaluation":
-    st.header("🧠 Model Evaluation")
+    # Model Evaluation Page
+    elif page_selection == "Model Evaluation":
+        st.header("🧠 Model Evaluation")
 
-    st.markdown("""
-        **Comprehensive Model Assessment:**
-        This section provides an in-depth evaluation of various machine learning models used for fraud detection. By analyzing key performance metrics and visualizations, executives can understand each model's effectiveness and suitability for deployment.
-    """)
+        st.markdown("""
+            **Comprehensive Model Assessment:**
+            This section provides an in-depth evaluation of various machine learning models used for fraud detection. By analyzing key performance metrics and visualizations, executives can understand each model's effectiveness and suitability for deployment.
+        """)
 
-    # Models supporting feature importance plus additional models
-    feature_importance_models = {
-        'Random Forest': 'random_forest.pkl',
-        'Extra Trees': 'extra_trees.pkl'
-    }
+        # Models supporting feature importance plus additional models
+        all_models = {
+            'Logistic Regression': 'logistic_regression.pkl',
+            'Random Forest': 'random_forest.pkl',
+            'Extra Trees': 'extra_trees.pkl',
+            'k-Nearest Neighbors': 'knn.pkl'
+        }
 
-    additional_models = {
-        'Logistic Regression': 'logistic_regression.pkl',
-        'k-Nearest Neighbors': 'knn.pkl'
-    }
+        classifier = st.selectbox("Select Model for Evaluation:", list(all_models.keys()))
+        model_file = all_models[classifier]
+        model_path = os.path.join(os.path.dirname(__file__), model_file)
 
-    # Combine all models
-    all_models = {**feature_importance_models, **additional_models}
-    classifier = st.selectbox("Select Model for Evaluation:", list(all_models.keys()))
-    model_file = all_models[classifier]
-    model_path = os.path.join(os.path.dirname(__file__), model_file)
+        try:
+            model = joblib.load(model_path)
+        except Exception as e:
+            st.error(f"Error loading model: {e}")
+            st.stop()
 
-    try:
-        model = joblib.load(model_path)
-    except Exception as e:
-        st.error(f"Error loading model: {e}")
-        st.stop()
+        # Test set size slider
+        test_size = st.slider('Test Set Size (%)', min_value=10, max_value=50, value=30, step=5)
+        test_size_fraction = test_size / 100
 
-    # Test set size slider
-    test_size = st.slider('Test Set Size (%)', min_value=10, max_value=50, value=30, step=5)
-    test_size_fraction = test_size / 100
+        X = df.drop(columns=['Class'])
+        y = df['Class']
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=test_size_fraction, random_state=42, stratify=y
+        )
 
-    X = df.drop(columns=['Class'])
-    y = df['Class']
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size_fraction, random_state=42, stratify=y
-    )
+        # Make predictions
+        y_pred = model.predict(X_test)
 
-    # Make predictions
-    y_pred = model.predict(X_test)
-    st.session_state["y_pred"] = y_pred
-    st.session_state["classifier"] = classifier
+        # Confusion Matrix
+        st.subheader("🔢 Confusion Matrix")
+        cm = confusion_matrix(y_test, y_pred)
+        fig_cm = plt.figure(figsize=(6, 4))
+        sns.heatmap(cm, annot=True, fmt='d', cmap='YlOrBr',
+                    xticklabels=['Valid', 'Fraud'], yticklabels=['Valid', 'Fraud'])
+        plt.xlabel("Predicted")
+        plt.ylabel("Actual")
+        plt.title(f"Confusion Matrix for {classifier}")
+        st.pyplot(fig_cm)
 
-    # Confusion Matrix
-    st.subheader("🔢 Confusion Matrix")
-    cm = confusion_matrix(y_test, y_pred)
-    fig_cm = plt.figure(figsize=(8, 6))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='YlOrBr',
-                xticklabels=['Valid', 'Fraud'], yticklabels=['Valid', 'Fraud'])
-    plt.xlabel("Predicted")
-    plt.ylabel("Actual")
-    plt.title(f"Confusion Matrix for {classifier}")
-    st.pyplot(fig_cm)
+        # Performance Metrics
+        f1 = f1_score(y_test, y_pred)
+        accuracy = accuracy_score(y_test, y_pred)
+        mcc = matthews_corrcoef(y_test, y_pred)
+        precision = precision_score(y_test, y_pred)
+        recall = recall_score(y_test, y_pred)
+        f2 = fbeta_score(y_test, y_pred, beta=2)
 
-    # Dynamic Explanation of Confusion Matrix
-    st.subheader("Confusion Matrix Analysis")
-    tn, fp, fn, tp = cm.ravel()
-    st.write(f"**True Positives (TP):** {tp} - Correctly identified fraud cases.")
-    st.write(f"**True Negatives (TN):** {tn} - Correctly identified valid transactions.")
-    st.write(f"**False Positives (FP):** {fp} - Misclassified valid transactions as fraud.")
-    st.write(f"**False Negatives (FN):** {fn} - Missed fraud cases.")
+        col1, col2, col3 = st.columns(3)
+        col1.metric("🔹 F1-Score", f"{f1:.4f}")
+        col2.metric("🔹 Precision", f"{precision:.4f}")
+        col3.metric("🔹 Recall", f"{recall:.4f}")
 
-    # Enhanced Classification Report
-    st.subheader("📋 Enhanced Classification Report")
-    report_df = pd.DataFrame(classification_report(y_test, y_pred, output_dict=True)).transpose()
-    st.dataframe(report_df.style.background_gradient(cmap='coolwarm'))
+        col4, col5, col6 = st.columns(3)
+        col4.metric("🔹 Accuracy", f"{accuracy:.4f}")
+        col5.metric("🔹 F2-Score", f"{f2:.4f}")
+        col6.metric("🔹 Matthews Corr. Coef.", f"{mcc:.4f}")
 
-    # Additional Metrics
-    f1 = f1_score(y_test, y_pred)
-    accuracy = accuracy_score(y_test, y_pred)
-    mcc = matthews_corrcoef(y_test, y_pred)
-    precision = precision_score(y_test, y_pred)
-    recall = recall_score(y_test, y_pred)
-    f2 = fbeta_score(y_test, y_pred, beta=2)
+        # Precision-Recall Curve
+        if hasattr(model, "predict_proba"):
+            y_proba = model.predict_proba(X_test)[:, 1]
+        else:
+            y_proba = model.decision_function(X_test)
+            y_proba = (y_proba - y_proba.min()) / (y_proba.max() - y_proba.min())  # Normalize
 
-    # Display metrics in columns
-    col1, col2, col3 = st.columns(3)
-    col1.metric("🔹 F1-Score", f"{f1:.4f}")
-    col2.metric("🔹 Precision", f"{precision:.4f}")
-    col3.metric("🔹 Recall", f"{recall:.4f}")
+        from sklearn.metrics import precision_recall_curve, average_precision_score
 
-    col4, col5, col6 = st.columns(3)
-    col4.metric("🔹 Accuracy", f"{accuracy:.4f}")
-    col5.metric("🔹 F2-Score", f"{f2:.4f}")
-    col6.metric("🔹 Matthews Corr. Coef.", f"{mcc:.4f}")
+        precision_vals, recall_vals, thresholds = precision_recall_curve(y_test, y_proba)
+        average_precision = average_precision_score(y_test, y_proba)
 
-    # Precision-Recall Curve
-    if hasattr(model, "predict_proba"):
-        y_proba = model.predict_proba(X_test)[:, 1]
-    else:
-        y_proba = model.decision_function(X_test)
-        y_proba = (y_proba - y_proba.min()) / (y_proba.max() - y_proba.min())  # Normalize
+        st.subheader("📈 Precision-Recall Curve")
+        fig_pr = px.area(
+            x=recall_vals, y=precision_vals,
+            title=f"Precision-Recall Curve (AP = {average_precision:.4f}) for {classifier}",
+            labels={'x': 'Recall', 'y': 'Precision'},
+            width=700, height=500
+        )
+        fig_pr.add_shape(
+            type='line', line=dict(dash='dash'),
+            x0=0, x1=1, y0=1, y1=0
+        )
+        fig_pr.update_yaxes(range=[0, 1], constrain='domain')
+        fig_pr.update_xaxes(range=[0, 1], constrain='domain')
+        st.plotly_chart(fig_pr, use_container_width=True)
 
-    from sklearn.metrics import precision_recall_curve, average_precision_score
+        # Threshold vs. F1 Score Plot
+        st.subheader("📉 Threshold vs. F1 Score")
+        f1_scores = []
+        thresholds = np.linspace(0, 1, 100)
+        for thresh in thresholds:
+            y_pred_thresh = (y_proba >= thresh).astype(int)
+            f1_scores.append(f1_score(y_test, y_pred_thresh))
+        fig_thresh = px.line(
+            x=thresholds, y=f1_scores,
+            labels={'x': 'Threshold', 'y': 'F1 Score'},
+            title='F1 Score vs. Decision Threshold'
+        )
+        st.plotly_chart(fig_thresh, use_container_width=True)
 
-    precision_vals, recall_vals, thresholds = precision_recall_curve(y_test, y_proba)
-    average_precision = average_precision_score(y_test, y_proba)
+        st.markdown("""
+        **Insights:**
+        - **Precision-Recall Curve:** Illustrates the trade-off between precision and recall for different threshold settings. It's particularly useful for imbalanced datasets.
+        - **Threshold Analysis:** The F1 Score vs. Threshold plot helps in selecting an optimal decision threshold that balances precision and recall according to business needs.
+        """)
 
-    st.subheader("📈 Precision-Recall Curve")
-    fig_pr = px.area(
-        x=recall_vals, y=precision_vals,
-        title=f"Precision-Recall Curve (AP = {average_precision:.4f}) for {classifier}",
-        labels={'x': 'Recall', 'y': 'Precision'},
-        width=700, height=500
-    )
-    fig_pr.add_shape(
-        type='line', line=dict(dash='dash'),
-        x0=0, x1=1, y0=1, y1=0
-    )
-    fig_pr.update_yaxes(range=[0, 1], constrain='domain')
-    fig_pr.update_xaxes(range=[0, 1], constrain='domain')
-    st.plotly_chart(fig_pr, use_container_width=True)
-
-    # Threshold vs. F1 Score Plot
-    st.subheader("📉 Threshold vs. F1 Score")
-    f1_scores = []
-    thresholds = np.linspace(0, 1, 100)
-    for thresh in thresholds:
-        y_pred_thresh = (y_proba >= thresh).astype(int)
-        f1_scores.append(f1_score(y_test, y_pred_thresh))
-    fig_thresh = px.line(
-        x=thresholds, y=f1_scores,
-        labels={'x': 'Threshold', 'y': 'F1 Score'},
-        title='F1 Score vs. Decision Threshold'
-    )
-    st.plotly_chart(fig_thresh, use_container_width=True)
-
-    st.markdown("""
-    **Insights:**
-    - **Precision-Recall Curve:** Illustrates the trade-off between precision and recall for different threshold settings. It's particularly useful for imbalanced datasets.
-    - **Threshold Analysis:** The F1 Score vs. Threshold plot helps in selecting an optimal decision threshold that balances precision and recall according to business needs.
-    """)
-
-
-# Simulator Page
-elif page_selection == "Simulator":
-    st.header("🚀 Simulator")
-    st.markdown("""
+    # Simulator Page
+    elif page_selection == "Simulator":
+        st.header("🚀 Simulator")
+        st.markdown("""
         **Simulate and Predict Fraudulent Transactions:**
         Enter transaction details to receive an immediate prediction on whether the transaction is fraudulent.
+        """)
+
+        # Load the model
+        default_model_filename = 'random_forest.pkl'
+        model_path = os.path.join(os.path.dirname(__file__), default_model_filename)
+        try:
+            model_sim = joblib.load(model_path)
+
+            # Input transaction details
+            st.subheader("🔍 Enter Transaction Details")
+            col1, col2 = st.columns(2)
+
+            with col1:
+                V_features = {}
+                for i in range(1, 29):
+                    V_features[f'V{i}'] = st.number_input(f'V{i}', value=0.0, format="%.5f", key=f'V{i}')
+
+            with col2:
+                Time = st.number_input('Time (seconds since first transaction)', min_value=0, value=0, step=1, key='Time')
+                Amount = st.number_input('Transaction Amount ($)', min_value=0.0, value=0.0, format="%.2f", key='Amount')
+
+            # Predict button
+            if st.button("Simulate"):
+                input_data = pd.DataFrame({
+                    **V_features,
+                    'Time': [Time],
+                    'Amount': [Amount]
+                })
+
+                prediction = model_sim.predict(input_data)[0]
+                prediction_proba = model_sim.predict_proba(input_data)[0][1]
+
+                if prediction == 1:
+                    st.error(f"⚠️ **Fraudulent Transaction Detected!** Probability: {prediction_proba:.2%}")
+                else:
+                    st.success(f"✅ **Valid Transaction.** Probability of Fraud: {prediction_proba:.2%}")
+        except Exception as e:
+            st.error(f"Error loading model '{default_model_filename}': {e}")
+
+# Generate PDF Report
+def generate_report():
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+
+    # Title
+    pdf.cell(200, 10, txt="Credit Card Fraud Detection Report", ln=True, align='C')
+
+    # Dataset Info
+    pdf.cell(200, 10, txt=f"Fraudulent Transactions: {outlier_percentage:.3f}%", ln=True)
+    pdf.cell(200, 10, txt=f"Fraud Cases: {len(fraud)} | Valid Cases: {len(valid)}", ln=True)
+
+    # Model Info
+    pdf.cell(200, 10, txt=f"Selected Model: {classifier}", ln=True)
+
+    # Metrics
+    pdf.cell(200, 10, txt="Classification Report (Test Set):", ln=True)
+    pdf.multi_cell(0, 10, classification_report(y_test, y_pred_test))
+
+    pdf.cell(200, 10, txt=f"Matthews Correlation Coefficient (MCC): {mcc:.3f}", ln=True)
+
+    # Save PDF
+    report_filename = "fraud_detection_report.pdf"
+    pdf.output(report_filename)
+    st.success(f"Report generated: {report_filename}")
+    with open(report_filename, "rb") as file:
+        st.download_button("Download Report", file, file_name=report_filename)
+
+# Button to download report
+if st.sidebar.button("Generate and Download Report"):
+    generate_report()
+
+
+# Feedback Page
+elif page_selection == "Feedback":
+    st.header("💬 Feedback")
+    st.markdown("""
+    **We Value Your Feedback:**
+    Help us improve the Credit Card Fraud Detection Dashboard by providing your valuable feedback and suggestions.
     """)
 
-    # Default model for simulation
-    default_model_filename = 'random_forest.pkl'
-    model_sim = load_model(default_model_filename)
+    # Feedback input
+    feedback = st.text_area("Provide your feedback here:")
 
-    if model_sim:
-        # Input transaction details
-        st.subheader("🔍 Enter Transaction Details")
-        col1, col2 = st.columns(2)
+    # Submit feedback button
+    if st.button("Submit Feedback"):
+        if feedback.strip() == "":
+            st.warning("Please enter your feedback before submitting.")
+        else:
+            # Placeholder for feedback storage (e.g., database or email)
+            # Implement actual storage mechanism as needed
+            st.success("Thank you for your feedback!")
 
-        with col1:
-            V_features = {}
-            for i in range(1, 29):
-                V_features[f'V{i}'] = st.number_input(f'V{i}', value=0.0, format="%.5f", key=f'V{i}')
-
-        with col2:
-            Time = st.number_input('Time', min_value=0, value=0, step=1, key='Time')
-            Amount = st.number_input('Transaction Amount ($)', min_value=0.0, value=0.0, format="%.2f", key='Amount')
-
-        # Predict button
-        if st.button("Simulate"):
-            input_data = pd.DataFrame({
-                **V_features,
-                'Time': [Time],
-                'Amount': [Amount]
-            })
-
-            prediction = model_sim.predict(input_data)[0]
-            prediction_proba = model_sim.predict_proba(input_data)[0][1]
-
-            if prediction == 1:
-                st.error(f"⚠️ **Fraudulent Transaction Detected!** Probability: {prediction_proba:.2%}")
-            else:
-                st.success(f"✅ **Valid Transaction.** Probability of Fraud: {prediction_proba:.2%}")
-    else:
-        st.error("Simulator model could not be loaded.")
-
-
-# Download Report
-if page_selection == "Download Report":
-    st.header("📄 Generate PDF Report")
-
-    def generate_report():
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", size=12)
-        pdf.cell(200, 10, txt="Credit Card Fraud Detection Report", ln=True, align='C')
-        pdf.cell(200, 10, txt=f"Model: {st.session_state['classifier']}", ln=True)
-        pdf.multi_cell(0, 10, str(report_df))
-        pdf.cell(200, 10, txt=f"F1-Score: {st.session_state['f1']:.3f}", ln=True)
-        pdf.cell(200, 10, txt=f"Accuracy: {st.session_state['accuracy']:.3f}", ln=True)
-        pdf.cell(200, 10, txt=f"MCC: {st.session_state['mcc']:.3f}", ln=True)
-        pdf.output("fraud_detection_report.pdf")
-        with open("fraud_detection_report.pdf", "rb") as file:
-            st.download_button("Download Report", file, file_name="fraud_detection_report.pdf")
-
-    st.button("Generate Report", on_click=generate_report)
+else:
+    st.error("Page not found.")
