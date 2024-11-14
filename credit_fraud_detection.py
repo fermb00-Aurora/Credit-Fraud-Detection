@@ -518,48 +518,32 @@ if df is not None:
         except Exception as e:
             st.error(f"Error loading model '{default_model_filename}': {e}")
 
-# Subsection: Generate PDF Report
-def generate_report():
-    # Initialize PDF
+def generate_report(classifier, y_test, y_pred_test, mcc):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
 
     # Title
-    pdf.set_font("Arial", style='B', size=16)
     pdf.cell(200, 10, txt="Credit Card Fraud Detection Report", ln=True, align='C')
-    pdf.set_font("Arial", size=12)
 
-    # Dataset Summary
-    pdf.cell(200, 10, txt="Dataset Overview:", ln=True)
+    # Dataset Info
     total_transactions = len(df)
-    total_fraud = df['Class'].sum()
-    fraud_percentage = (total_fraud / total_transactions) * 100
-    pdf.cell(200, 10, txt=f"Total Transactions: {total_transactions}", ln=True)
-    pdf.cell(200, 10, txt=f"Fraudulent Transactions: {total_fraud} ({fraud_percentage:.2f}%)", ln=True)
+    fraud_cases = df['Class'].sum()
+    valid_cases = total_transactions - fraud_cases
+    fraud_percentage = (fraud_cases / total_transactions) * 100
 
-    # Model Information
-    pdf.cell(200, 10, txt="Model Evaluation Summary:", ln=True)
+    pdf.cell(200, 10, txt=f"Fraudulent Transactions: {fraud_percentage:.3f}%", ln=True)
+    pdf.cell(200, 10, txt=f"Fraud Cases: {fraud_cases} | Valid Cases: {valid_cases}", ln=True)
+
+    # Model Info
     pdf.cell(200, 10, txt=f"Selected Model: {classifier}", ln=True)
 
-    # Performance Metrics
-    pdf.cell(200, 10, txt="Key Performance Metrics:", ln=True)
-    pdf.cell(200, 10, txt=f"Accuracy: {accuracy:.4f}", ln=True)
-    pdf.cell(200, 10, txt=f"F1-Score: {f1:.4f}", ln=True)
-    pdf.cell(200, 10, txt=f"Precision: {precision:.4f}", ln=True)
-    pdf.cell(200, 10, txt=f"Recall: {recall:.4f}", ln=True)
-    pdf.cell(200, 10, txt=f"F2-Score: {f2:.4f}", ln=True)
-    pdf.cell(200, 10, txt=f"Matthews Correlation Coefficient (MCC): {mcc:.4f}", ln=True)
+    # Metrics
+    pdf.cell(200, 10, txt="Classification Report (Test Set):", ln=True)
+    pdf.multi_cell(0, 10, classification_report(y_test, y_pred_test))
+    pdf.cell(200, 10, txt=f"Matthews Correlation Coefficient (MCC): {mcc:.3f}", ln=True)
 
-    # Confusion Matrix
-    pdf.cell(200, 10, txt="Confusion Matrix:", ln=True)
-    pdf.multi_cell(0, 10, f"True Positives: {cm[1, 1]}\nTrue Negatives: {cm[0, 0]}\nFalse Positives: {cm[0, 1]}\nFalse Negatives: {cm[1, 0]}")
-
-    # Additional Insights
-    pdf.cell(200, 10, txt="Additional Insights:", ln=True)
-    pdf.cell(200, 10, txt="The dataset shows a significant imbalance with a higher percentage of valid transactions. The chosen model effectively balances precision and recall, making it suitable for deployment in fraud detection scenarios.", ln=True)
-
-    # Save and Display PDF Report
+    # Save PDF
     report_filename = "fraud_detection_report.pdf"
     pdf.output(report_filename)
     st.success(f"Report generated: {report_filename}")
@@ -569,9 +553,9 @@ def generate_report():
 # Button to generate and download the report
 if page_selection == "Download Report":
     st.header("📄 Generate PDF Report")
-    st.markdown("Click the button below to generate and download the detailed PDF report summarizing the model evaluation and insights.")
     if st.button("Generate Report"):
-        generate_report()
+        # Pass necessary arguments from the evaluation context
+        generate_report(classifier, y_test, y_pred, mcc)
 
 
 
