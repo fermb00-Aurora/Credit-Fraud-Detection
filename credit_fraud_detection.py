@@ -147,17 +147,243 @@ if df is not None:
         - **Data Imbalance:** The significant imbalance between fraudulent and valid transactions underscores the challenge in fraud detection, necessitating specialized modeling techniques.
         """)
 
-    # Exploratory Data Analysis Page
+   # Exploratory Data Analysis Page
     elif page_selection == "Exploratory Data Analysis":
         st.header("📊 Exploratory Data Analysis")
-        # [Content remains the same as before]
-        # ...
+
+        # Correlation Heatmap
+        st.subheader("🔗 Feature Correlation Heatmap")
+        corr = df.corr()
+        fig_corr = px.imshow(
+            corr,
+            x=corr.columns,
+            y=corr.columns,
+            color_continuous_scale='YlOrBr',
+            title='Correlation Heatmap of Features',
+            aspect="auto",
+            labels=dict(color="Correlation")
+        )
+        st.plotly_chart(fig_corr, use_container_width=True)
+
+        st.markdown("""
+        **Key Observations:**
+        - **High Correlation Among V* Features:** Features V1 to V28, which are the result of a PCA transformation, exhibit high inter-correlation, indicating potential multicollinearity.
+        - **Amount Feature:** The 'Amount' feature shows some correlation with other features, suggesting its significance in distinguishing between transaction classes.
+        """)
+
+        # Transaction Amount Over Time
+        st.subheader("⏰ Transaction Amount Over Time")
+        # Sample the data for performance
+        sampled_df = df.sample(n=5000, random_state=42) if len(df) > 5000 else df
+        fig_time = px.scatter(
+            sampled_df,
+            x='Time',
+            y='Amount',
+            color=sampled_df['Class'].map({0: 'Valid', 1: 'Fraud'}),
+            labels={
+                'Time': 'Time (seconds)',
+                'Amount': 'Transaction Amount ($)',
+                'color': 'Transaction Class'
+            },
+            title="Transaction Amounts Over Time",
+            opacity=0.5,
+            color_discrete_map={'Valid': 'green', 'Fraud': 'red'},
+            hover_data={'Time': True, 'Amount': True, 'Class': True}
+        )
+        st.plotly_chart(fig_time, use_container_width=True)
+
+        # Density Plot of Transaction Amounts
+        st.subheader("📈 Density Plot of Transaction Amounts")
+        fig_density = px.histogram(
+            df,
+            x='Amount',
+            color=df['Class'].map({0: 'Valid', 1: 'Fraud'}),
+            nbins=50,
+            histnorm='density',
+            title="Density of Transaction Amounts by Class",
+            labels={'Amount': 'Transaction Amount ($)', 'density': 'Density', 'color': 'Transaction Class'},
+            color_discrete_map={'Valid': 'green', 'Fraud': 'red'},
+            opacity=0.6
+        )
+        st.plotly_chart(fig_density, use_container_width=True)
+
+        # Transactions Over Time by Hour
+        st.subheader("📅 Transactions Over Time")
+        # Convert 'Time' from seconds to hours for better readability
+        df['Hour'] = (df['Time'] // 3600) % 24
+        transactions_per_hour = df.groupby(['Hour', 'Class']).size().reset_index(name='Counts')
+        fig_hour = px.bar(
+            transactions_per_hour,
+            x='Hour',
+            y='Counts',
+            color=transactions_per_hour['Class'].map({0: 'Valid', 1: 'Fraud'}),
+            labels={
+                'Hour': 'Hour of Day',
+                'Counts': 'Number of Transactions',
+                'color': 'Transaction Class'
+            },
+            title="Number of Transactions per Hour",
+            color_discrete_map={'Valid': 'green', 'Fraud': 'red'},
+            barmode='group'
+        )
+        st.plotly_chart(fig_hour, use_container_width=True)
+
+        # Additional Insightful Visualizations for Business
+        st.subheader("📊 Additional Business Insights")
+
+        # Average Transaction Amount per Hour
+        st.markdown("### 📈 Average Transaction Amount per Hour")
+        avg_amount_hour = df.groupby(['Hour', 'Class'])['Amount'].mean().reset_index()
+        fig_avg_amount = px.line(
+            avg_amount_hour,
+            x='Hour',
+            y='Amount',
+            color=avg_amount_hour['Class'].map({0: 'Valid', 1: 'Fraud'}),
+            labels={
+                'Hour': 'Hour of Day',
+                'Amount': 'Average Transaction Amount ($)',
+                'color': 'Transaction Class'
+            },
+            title="Average Transaction Amount per Hour",
+            color_discrete_map={'Valid': 'green', 'Fraud': 'red'},
+            markers=True
+        )
+        st.plotly_chart(fig_avg_amount, use_container_width=True)
+
+        # Fraud Rate by Hour
+        st.markdown("### 📉 Fraud Rate by Hour")
+        fraud_rate_hour = df.groupby('Hour')['Class'].mean().reset_index()
+        fig_fraud_rate = px.bar(
+            fraud_rate_hour,
+            x='Hour',
+            y='Class',
+            labels={
+                'Hour': 'Hour of Day',
+                'Class': 'Fraud Rate',
+            },
+            title="Fraud Rate by Hour of Day",
+            color='Class',
+            color_continuous_scale='Reds',
+            range_y=[0, fraud_rate_hour['Class'].max() + 0.01]
+        )
+        st.plotly_chart(fig_fraud_rate, use_container_width=True)
+
+        # Heatmap of Fraud Rate by Hour and Amount Bracket
+        st.markdown("### 🔥 Fraud Rate by Hour and Transaction Amount Bracket")
+        # Create amount brackets
+        df['Amount_Bracket'] = pd.qcut(df['Amount'], q=4, labels=["Low", "Medium", "High", "Very High"])
+        fraud_rate_heatmap = df.groupby(['Hour', 'Amount_Bracket'])['Class'].mean().reset_index()
+        pivot_heatmap = fraud_rate_heatmap.pivot(index='Hour', columns='Amount_Bracket', values='Class')
+        fig_heatmap = px.imshow(
+            pivot_heatmap,
+            labels=dict(x="Amount Bracket", y="Hour of Day", color="Fraud Rate"),
+            x=pivot_heatmap.columns,
+            y=pivot_heatmap.index,
+            color_continuous_scale='Reds',
+            title="Fraud Rate by Hour and Transaction Amount Bracket",
+            aspect="auto"
+        )
+        st.plotly_chart(fig_heatmap, use_container_width=True)
+
+        st.markdown("""
+        **In-Depth Analysis:**
+        - **Temporal Patterns:** The distribution of transactions across different hours indicates peak periods of activity, which can be critical for monitoring and deploying fraud detection mechanisms during high-risk times.
+        - **Transaction Density:** The density plots reveal the concentration of transaction amounts, providing insights into typical spending behaviors and potential outliers.
+        - **Average Transaction Amount:** Understanding average transaction amounts per hour can help identify unusual spikes that may signify fraudulent activities.
+        - **Fraud Rate Analysis:** Monitoring fraud rates across different hours helps in allocating resources effectively and enhancing surveillance during high-risk periods.
+        - **Fraud Rate by Amount Bracket:** Analyzing fraud rates across transaction amount brackets can identify high-risk spending behaviors, enabling targeted fraud prevention strategies.
+        """)
 
     # Feature Importance Page
     elif page_selection == "Feature Importance":
         st.header("🔍 Feature Importance Analysis")
-        # [Content remains the same as before]
-        # ...
+        st.markdown("""
+        **Understanding Feature Impact:**
+        Identifying which features significantly influence model predictions is paramount in credit card fraud detection. This section delves into the importance of various features across different machine learning models, providing clarity on what drives fraud detection decisions.
+
+        **Models Analyzed:**
+        - **Random Forest:** Utilizes ensemble learning to provide feature importance based on the mean decrease in impurity.
+        - **Extra Trees:** Similar to Random Forest but with more randomness, offering robust feature importance metrics.
+        - **Logistic Regression:** Assesses feature importance through the magnitude of coefficients, indicating the strength and direction of influence.
+        """)
+
+        # Dictionary of models supporting feature importance
+        feature_importance_models = {
+            'Random Forest': 'random_forest.pkl',
+            'Extra Trees': 'extra_trees.pkl',
+            'Logistic Regression': 'logistic_regression.pkl'
+        }
+
+        selected_model = st.selectbox("Select a model for feature importance:", list(feature_importance_models.keys()))
+        model_filename = feature_importance_models[selected_model]
+        model_path = os.path.join(os.path.dirname(__file__), model_filename)
+
+        try:
+            model = joblib.load(model_path)
+            features = df.drop(columns=['Class']).columns
+
+            # Determine feature importances based on model type
+            if selected_model in ['Random Forest', 'Extra Trees']:
+                importances = model.feature_importances_
+            elif selected_model == 'Logistic Regression':
+                importances = np.abs(model.coef_[0])
+            else:
+                st.error("Selected model does not support feature importance.")
+                importances = None
+
+            if importances is not None:
+                # Create a DataFrame for feature importances
+                importance_df = pd.DataFrame({
+                    'Feature': features,
+                    'Importance': importances
+                }).sort_values(by='Importance', ascending=False)
+
+                # Slider for selecting number of top features to display
+                top_n = st.slider("Select Number of Top Features to Display:", min_value=5, max_value=20, value=10, step=1)
+
+                # Display Top N Important Features
+                st.subheader(f"📌 Top {top_n} Most Important Features")
+                fig_imp_top = px.bar(
+                    importance_df.head(top_n),
+                    x='Importance',
+                    y='Feature',
+                    orientation='h',
+                    title=f"Top {top_n} Feature Importances for {selected_model}",
+                    labels={'Importance': 'Importance Score', 'Feature': 'Feature'},
+                    color='Importance',
+                    color_continuous_scale='YlOrRd'
+                )
+                st.plotly_chart(fig_imp_top, use_container_width=True)
+
+                # Display Top N Least Important Features
+                st.subheader(f"📉 Top {top_n} Least Important Features")
+                fig_imp_bottom = px.bar(
+                    importance_df.tail(top_n),
+                    x='Importance',
+                    y='Feature',
+                    orientation='h',
+                    title=f"Top {top_n} Least Important Features for {selected_model}",
+                    labels={'Importance': 'Importance Score', 'Feature': 'Feature'},
+                    color='Importance',
+                    color_continuous_scale='Blues'
+                )
+                st.plotly_chart(fig_imp_bottom, use_container_width=True)
+
+                st.markdown("""
+                **Strategic Insights:**
+                - **High-Impact Features:** Understanding which features most significantly influence fraud detection enables targeted enhancements in data collection and monitoring processes.
+                - **Low-Impact Features:** Identifying features with minimal influence can streamline data preprocessing and reduce computational overhead without compromising model performance.
+                - **Model Selection:** Different models may prioritize different features, offering diverse perspectives on what drives fraudulent activities.
+                """)
+
+                # Optional: Display Feature Importance Table
+                st.subheader("📄 Feature Importance Table")
+                st.dataframe(importance_df.style.background_gradient(cmap='YlOrRd'))
+            else:
+                st.error("Unable to extract feature importances for the selected model.")
+        except Exception as e:
+            st.error(f"Error loading model '{model_filename}': {e}")
+
 
     # Model Evaluation Page
     elif page_selection == "Model Evaluation":
