@@ -380,14 +380,134 @@ if df is not None:
     # Download Report Page
     elif page_selection == "Download Report":
         st.header("📄 Download Report")
-        # [Content remains the same as before]
-        # ...
+        st.markdown("""
+        **Generate and Download a Professional PDF Report:**
+        Compile your analysis and model evaluation results into a concise and professional PDF report for offline review and sharing with stakeholders.
+        """)
+
+        # Button to generate report
+        if st.button("Generate Report"):
+            with st.spinner("Generating PDF report..."):
+                try:
+                    # Retrieve evaluation data from session state
+                    eval_data = st.session_state.get('model_evaluation', {})
+                    required_keys = ['classifier', 'metrics', 'test_size']
+                    if not all(key in eval_data for key in required_keys):
+                        st.error("Please perform a model evaluation before generating the report.")
+                    else:
+                        classifier = eval_data['classifier']
+                        metrics = eval_data['metrics']
+                        test_size = eval_data['test_size']
+                        roc_auc = eval_data.get('roc_auc', "N/A")
+
+                        # Initialize PDF
+                        pdf = FPDF()
+                        pdf.set_auto_page_break(auto=True, margin=15)
+
+                        # Title Page
+                        pdf.add_page()
+                        pdf.set_font("Arial", 'B', 16)
+                        pdf.cell(0, 10, "Credit Card Fraud Detection Report", ln=True, align='C')
+                        pdf.ln(10)
+
+                        # Executive Summary
+                        pdf.set_font("Arial", 'B', 12)
+                        pdf.cell(0, 10, "Executive Summary", ln=True)
+                        pdf.set_font("Arial", '', 12)
+                        exec_summary = (
+                            "This report provides a comprehensive analysis of credit card transactions to identify and detect fraudulent activities. "
+                            "It includes a data overview and model evaluation results to support strategic decision-making and risk management."
+                        )
+                        pdf.multi_cell(0, 10, exec_summary)
+                        pdf.ln(5)
+
+                        # Data Overview
+                        pdf.set_font("Arial", 'B', 12)
+                        pdf.cell(0, 10, "Data Overview", ln=True)
+                        pdf.set_font("Arial", '', 12)
+                        total_transactions = len(df)
+                        total_fraudulent = df['Class'].sum()
+                        total_valid = total_transactions - total_fraudulent
+                        fraudulent_percentage = (total_fraudulent / total_transactions) * 100
+                        valid_percentage = 100 - fraudulent_percentage
+                        data_overview = (
+                            f"- **Total Transactions:** {total_transactions:,}\n"
+                            f"- **Fraudulent Transactions:** {total_fraudulent:,} ({fraudulent_percentage:.4f}%)\n"
+                            f"- **Valid Transactions:** {total_valid:,} ({valid_percentage:.4f}%)\n"
+                            "- **Features:** The dataset includes anonymized features resulting from a PCA transformation, along with 'Time' and 'Amount'.\n"
+                            "- **Data Imbalance:** The dataset is highly imbalanced, which presents challenges for effective fraud detection."
+                        )
+                        pdf.multi_cell(0, 10, data_overview)
+                        pdf.ln(5)
+
+                        # Model Evaluation Summary
+                        pdf.set_font("Arial", 'B', 12)
+                        pdf.cell(0, 10, "Model Evaluation Summary", ln=True)
+                        pdf.set_font("Arial", '', 12)
+                        model_evaluation_summary = (
+                            f"- **Model Used:** {classifier}\n"
+                            f"- **Test Set Size:** {test_size}%\n"
+                            f"- **Accuracy:** {metrics['accuracy']:.4f}\n"
+                            f"- **F1-Score:** {metrics['f1_score']:.4f}\n"
+                            f"- **Precision:** {metrics['precision']:.4f}\n"
+                            f"- **Recall:** {metrics['recall']:.4f}\n"
+                            f"- **ROC-AUC Score:** {roc_auc if roc_auc != 'N/A' else 'N/A'}\n"
+                        )
+                        pdf.multi_cell(0, 10, model_evaluation_summary)
+                        pdf.ln(5)
+
+                        # Conclusion
+                        pdf.set_font("Arial", 'B', 12)
+                        pdf.cell(0, 10, "Conclusion", ln=True)
+                        pdf.set_font("Arial", '', 12)
+                        conclusion = (
+                            "The evaluation results indicate that the selected model demonstrates reliable performance in detecting fraudulent transactions. "
+                            "Key metrics such as F1-Score and ROC-AUC suggest a balanced trade-off between precision and recall, which is crucial in minimizing both false positives and false negatives. "
+                            "These insights can aid in refining fraud detection strategies and enhancing financial security measures."
+                        )
+                        pdf.multi_cell(0, 10, conclusion)
+                        pdf.ln(5)
+
+                        # Finalize and Save the PDF
+                        report_path = "fraud_detection_report.pdf"
+                        pdf.output(report_path)
+
+                        # Provide download button
+                        with open(report_path, "rb") as file:
+                            st.download_button(
+                                label="📥 Download PDF Report",
+                                data=file,
+                                file_name=report_path,
+                                mime="application/pdf"
+                            )
+                        st.success("Report generated and ready for download!")
+
+                        # Clean up the temporary PDF file
+                        os.remove(report_path)
+
+                except Exception as e:
+                    st.error(f"Error generating report: {e}")
 
     # Feedback Page
     elif page_selection == "Feedback":
         st.header("💬 Feedback")
-        # [Content remains the same as before]
-        # ...
+        st.markdown("""
+        **We Value Your Feedback:**
+        Help us improve the Credit Card Fraud Detection Dashboard by providing your valuable feedback and suggestions.
+        """)
+
+        # Feedback input
+        feedback = st.text_area("Provide your feedback here:")
+
+        # Submit feedback button
+        if st.button("Submit Feedback"):
+            if feedback.strip() == "":
+                st.warning("Please enter your feedback before submitting.")
+            else:
+                # Placeholder for feedback storage (e.g., database or email)
+                # Implement actual storage mechanism as needed
+                st.success("Thank you for your feedback!")
 
     else:
         st.error("Page not found.")
+
