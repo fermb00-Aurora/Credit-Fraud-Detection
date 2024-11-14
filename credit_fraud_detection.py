@@ -1,28 +1,18 @@
 # fraud_detection_app.py
 
-"""
-Credit Card Fraud Detection Dashboard
-Author: [Your Name]
-Date: [Date]
-Description:
-A Streamlit application for detecting fraudulent credit card transactions using machine learning models.
-"""
-
 # Import necessary libraries
-import os
-import joblib
-import tempfile
-import warnings
-from typing import Dict, Any
-
-import numpy as np
 import pandas as pd
-import seaborn as sns
 import matplotlib.pyplot as plt
+import seaborn as sns
 import plotly.express as px
+import plotly.graph_objects as go
+import numpy as np
+import warnings
 import streamlit as st
+import joblib
+import os
 from fpdf import FPDF
-from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
+from sklearn.model_selection import train_test_split
 from sklearn.metrics import (
     confusion_matrix,
     matthews_corrcoef,
@@ -35,9 +25,9 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
     fbeta_score,
-    roc_auc_score,
-    cohen_kappa_score
+    roc_auc_score
 )
+import tempfile
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings("ignore")
@@ -64,14 +54,9 @@ page_selection = st.sidebar.radio("Go to", [
 ])
 
 # Function to load data with caching
-@st.cache_data(show_spinner=False)
-def load_data() -> pd.DataFrame:
-    """Loads the credit card fraud dataset."""
-    data_path = 'creditcard.csv'
-    if not os.path.exists(data_path):
-        st.error(f"Data file not found at {data_path}. Please ensure the dataset is in the correct directory.")
-        st.stop()
-    df = pd.read_csv(data_path)
+@st.cache_data
+def load_data():
+    df = pd.read_csv('creditcard.csv')
     return df
 
 # Load the dataset
@@ -92,7 +77,7 @@ if df is not None:
 
         **Key Highlights:**
         - **Comprehensive Data Analysis:** In-depth exploration of transaction data to identify patterns and anomalies.
-        - **Advanced Machine Learning Models:** Evaluation of pre-trained models including Logistic Regression, Random Forest, Extra Trees, and k-Nearest Neighbors for accurate fraud detection.
+        - **Advanced Machine Learning Models:** Evaluation of pre-trained models including Logistic Regression, Random Forest, and Extra Trees for accurate fraud detection.
         - **Interactive Visualizations:** Dynamic charts and graphs that facilitate intuitive understanding of data trends and model performances.
         - **Actionable Insights:** Detailed reports and metrics that support strategic decision-making and risk management.
         - **Customizable Reports:** Generate and download tailored PDF reports to share findings with stakeholders.
@@ -117,22 +102,21 @@ if df is not None:
         st.subheader("📊 Data Summary")
         st.dataframe(df.describe().T.style.background_gradient(cmap='YlGnBu'))
 
-        total_transactions = len(df)
-        total_fraudulent = df['Class'].sum()
-        total_valid = total_transactions - total_fraudulent
-        fraudulent_percentage = (total_fraudulent / total_transactions) * 100
-        valid_percentage = 100 - fraudulent_percentage
-
-        st.markdown(f"""
+        st.markdown("""
         **Discussion:**
-        - **Total Transactions:** The dataset comprises **{total_transactions:,}** transactions.
-        - **Class Distribution:** Out of these, **{total_fraudulent:,}** are labeled as fraudulent (**{fraudulent_percentage:.4f}%**) and the remaining **{total_valid:,}** as valid.
+        - **Total Transactions:** The dataset comprises **{:,}** transactions.
+        - **Class Distribution:** Out of these, **{:,}** are labeled as fraudulent (**{:.4f}%**) and the remaining **{:,}** as valid.
         - **Feature Details:**
             - **V1 to V28:** Result of a PCA transformation to ensure anonymity and reduce dimensionality.
             - **Time:** Seconds elapsed since the first transaction in the dataset, providing temporal context.
             - **Amount:** Transaction amount in US dollars.
         - **Data Imbalance:** The significant imbalance between fraudulent and valid transactions underscores the challenge in fraud detection, necessitating specialized modeling techniques.
-        """)
+        """.format(
+            len(df),
+            df['Class'].sum(),
+            (df['Class'].sum() / len(df)) * 100,
+            len(df) - df['Class'].sum()
+        ))
 
     # Exploratory Data Analysis Page
     elif page_selection == "Exploratory Data Analysis":
@@ -166,15 +150,15 @@ if df is not None:
             sampled_df,
             x='Time',
             y='Amount',
-            color=sampled_df['Class'].map({0: 'Valid', 1: 'Fraud'}),
+            color='Class',
             labels={
-                'Time': 'Time (seconds)',
+                'Time': 'Time',
                 'Amount': 'Transaction Amount ($)',
-                'color': 'Transaction Class'
+                'Class': 'Transaction Class'
             },
             title="Transaction Amounts Over Time",
             opacity=0.5,
-            color_discrete_map={'Valid': 'green', 'Fraud': 'red'},
+            color_discrete_map={'0': 'green', '1': 'red'},
             hover_data={'Time': True, 'Amount': True, 'Class': True}
         )
         st.plotly_chart(fig_time, use_container_width=True)
@@ -184,12 +168,12 @@ if df is not None:
         fig_density = px.histogram(
             df,
             x='Amount',
-            color=df['Class'].map({0: 'Valid', 1: 'Fraud'}),
+            color='Class',
             nbins=50,
             histnorm='density',
             title="Density of Transaction Amounts by Class",
-            labels={'Amount': 'Transaction Amount ($)', 'density': 'Density', 'color': 'Transaction Class'},
-            color_discrete_map={'Valid': 'green', 'Fraud': 'red'},
+            labels={'Amount': 'Transaction Amount ($)', 'density': 'Density'},
+            color_discrete_map={'0': 'green', '1': 'red'},
             opacity=0.6
         )
         st.plotly_chart(fig_density, use_container_width=True)
@@ -203,14 +187,14 @@ if df is not None:
             transactions_per_hour,
             x='Hour',
             y='Counts',
-            color=transactions_per_hour['Class'].map({0: 'Valid', 1: 'Fraud'}),
+            color='Class',
             labels={
                 'Hour': 'Hour of Day',
                 'Counts': 'Number of Transactions',
-                'color': 'Transaction Class'
+                'Class': 'Transaction Class'
             },
             title="Number of Transactions per Hour",
-            color_discrete_map={'Valid': 'green', 'Fraud': 'red'},
+            color_discrete_map={'0': 'green', '1': 'red'},
             barmode='group'
         )
         st.plotly_chart(fig_hour, use_container_width=True)
@@ -225,14 +209,14 @@ if df is not None:
             avg_amount_hour,
             x='Hour',
             y='Amount',
-            color=avg_amount_hour['Class'].map({0: 'Valid', 1: 'Fraud'}),
+            color='Class',
             labels={
                 'Hour': 'Hour of Day',
                 'Amount': 'Average Transaction Amount ($)',
-                'color': 'Transaction Class'
+                'Class': 'Transaction Class'
             },
             title="Average Transaction Amount per Hour",
-            color_discrete_map={'Valid': 'green', 'Fraud': 'red'},
+            color_discrete_map={'0': 'green', '1': 'red'},
             markers=True
         )
         st.plotly_chart(fig_avg_amount, use_container_width=True)
@@ -380,7 +364,7 @@ if df is not None:
             This section provides an in-depth evaluation of various machine learning models used for fraud detection. By analyzing key performance metrics and visualizations, executives can understand each model's effectiveness and suitability for deployment.
         """)
 
-        # Models to evaluate
+        # Models supporting feature importance plus additional models
         all_models = {
             'Logistic Regression': 'logistic_regression.pkl',
             'Random Forest': 'random_forest.pkl',
@@ -404,16 +388,6 @@ if df is not None:
 
         X = df.drop(columns=['Class'])
         y = df['Class']
-
-        # Stratified K-Fold Cross-Validation
-        st.markdown("### 📂 Cross-Validation Results")
-        k_folds = st.slider('Number of Cross-Validation Folds', min_value=3, max_value=10, value=5, step=1)
-        skf = StratifiedKFold(n_splits=k_folds, shuffle=True, random_state=42)
-        cv_results = cross_val_score(model, X, y, cv=skf, scoring='f1')
-
-        st.write(f"Average F1-Score from {k_folds}-Fold Cross-Validation: **{cv_results.mean():.4f}**")
-
-        # Train-Test Split
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=test_size_fraction, random_state=42, stratify=y
         )
@@ -439,7 +413,6 @@ if df is not None:
         precision = precision_score(y_test, y_pred)
         recall = recall_score(y_test, y_pred)
         f2 = fbeta_score(y_test, y_pred, beta=2)
-        cohen_kappa = cohen_kappa_score(y_test, y_pred)
 
         col1, col2, col3 = st.columns(3)
         col1.metric("🔹 F1-Score", f"{f1:.4f}")
@@ -451,35 +424,16 @@ if df is not None:
         col5.metric("🔹 F2-Score", f"{f2:.4f}")
         col6.metric("🔹 Matthews Corr. Coef.", f"{mcc:.4f}")
 
-        st.metric("🔹 Cohen's Kappa", f"{cohen_kappa:.4f}")
-
-        # ROC Curve and AUC
+        # Precision-Recall Curve
         if hasattr(model, "predict_proba"):
             y_proba = model.predict_proba(X_test)[:, 1]
         else:
             y_proba = model.decision_function(X_test)
             y_proba = (y_proba - y_proba.min()) / (y_proba.max() - y_proba.min())  # Normalize
 
-        fpr, tpr, thresholds_roc = roc_curve(y_test, y_proba)
-        roc_auc = auc(fpr, tpr)
+        from sklearn.metrics import precision_recall_curve, average_precision_score
 
-        st.subheader("📈 ROC Curve")
-        fig_roc = px.area(
-            x=fpr, y=tpr,
-            title=f"ROC Curve (AUC = {roc_auc:.4f}) for {classifier}",
-            labels={'x': 'False Positive Rate', 'y': 'True Positive Rate'},
-            width=700, height=500
-        )
-        fig_roc.add_shape(
-            type='line', line=dict(dash='dash'),
-            x0=0, x1=1, y0=0, y1=1
-        )
-        fig_roc.update_yaxes(range=[0, 1], scaleanchor="x", scaleratio=1)
-        fig_roc.update_xaxes(range=[0, 1])
-        st.plotly_chart(fig_roc, use_container_width=True)
-
-        # Precision-Recall Curve
-        precision_vals, recall_vals, thresholds_pr = precision_recall_curve(y_test, y_proba)
+        precision_vals, recall_vals, thresholds = precision_recall_curve(y_test, y_proba)
         average_precision = average_precision_score(y_test, y_proba)
 
         st.subheader("📈 Precision-Recall Curve")
@@ -493,8 +447,8 @@ if df is not None:
             type='line', line=dict(dash='dash'),
             x0=0, x1=1, y0=1, y1=0
         )
-        fig_pr.update_yaxes(range=[0, 1], scaleanchor="x", scaleratio=1)
-        fig_pr.update_xaxes(range=[0, 1])
+        fig_pr.update_yaxes(range=[0, 1], constrain='domain')
+        fig_pr.update_xaxes(range=[0, 1], constrain='domain')
         st.plotly_chart(fig_pr, use_container_width=True)
 
         # Threshold vs. F1 Score Plot
@@ -513,10 +467,12 @@ if df is not None:
 
         st.markdown("""
         **Insights:**
-        - **ROC Curve:** Demonstrates the trade-off between true positive rate and false positive rate. A higher AUC indicates better model performance.
         - **Precision-Recall Curve:** Illustrates the trade-off between precision and recall for different threshold settings. It's particularly useful for imbalanced datasets.
         - **Threshold Analysis:** The F1 Score vs. Threshold plot helps in selecting an optimal decision threshold that balances precision and recall according to business needs.
         """)
+
+        # Compute ROC-AUC
+        roc_auc = roc_auc_score(y_test, y_proba)
 
         # Store evaluation data into session state
         st.session_state['model_evaluation'] = {
@@ -529,8 +485,7 @@ if df is not None:
                 'mcc': mcc,
                 'precision': precision,
                 'recall': recall,
-                'f2_score': f2,
-                'cohen_kappa': cohen_kappa
+                'f2_score': f2
             },
             'test_size': test_size,
             'roc_auc': roc_auc,
