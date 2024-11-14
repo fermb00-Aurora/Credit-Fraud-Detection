@@ -762,14 +762,15 @@ elif page_selection == "Feedback":
     # Feedback input
     feedback = st.text_area("Provide your feedback here:")
 
-     # Submit feedback button
-     if st.button("Submit Feedback"):
-           if feedback.strip() == "":
-             st.warning("Please enter your feedback before submitting.")
-         else:
-             # Placeholder for feedback storage (e.g., database or email)
-             # Implement actual storage mechanism as needed
-             st.success("Thank you for your feedback!")
+    # Submit feedback button
+    if st.button("Submit Feedback"):
+        if feedback.strip() == "":
+            st.warning("Please enter your feedback before submitting.")
+        else:
+            # Placeholder for feedback storage (e.g., database or email)
+            # Implement actual storage mechanism as needed
+            st.success("Thank you for your feedback!")
 
- else:
-       st.error("Page not found.")
+else:
+    st.error("Page not found.")
+
